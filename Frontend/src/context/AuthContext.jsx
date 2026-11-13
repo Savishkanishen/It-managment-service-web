@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { USERS, ROLES } from '../data/mockData';
+import authService from '../services/authService';
 
 const AuthContext = createContext(null);
 
@@ -26,7 +27,7 @@ export const AuthProvider = ({ children }) => {
         parsed.role = normalizeRole(parsed.role);
         setUser(parsed);
       } catch (e) {
-        console.error("Failed to parse stored user data");
+        console.error('Failed to parse stored user data');
         localStorage.removeItem('itsm_user');
       }
     }
@@ -35,25 +36,14 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
-        userData.role = normalizeRole(userData.role);
-        setUser(userData);
-        localStorage.setItem('itsm_user', JSON.stringify(userData));
-        return { success: true };
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        return { success: false, error: errorData.error || 'Invalid credentials' };
-      }
+      const userData = await authService.login(username, password);
+      userData.role = normalizeRole(userData.role);
+      setUser(userData);
+      localStorage.setItem('itsm_user', JSON.stringify(userData));
+      return { success: true, user: userData };
     } catch (error) {
-      console.warn('Network error connecting to backend, checking local accounts:', error.message);
-      // Fallback offline authentication against mock data if backend dev server is temporarily starting up
+      console.warn('Backend login unavailable, checking offline mock accounts:', error.message);
+      // Fallback offline authentication against mock data
       const mockMatch = USERS.find(u => u.username.toLowerCase() === username.toLowerCase());
       if (mockMatch && (password === 'password123' || password === 'admin@1234')) {
         const userData = {
@@ -68,9 +58,52 @@ export const AuthProvider = ({ children }) => {
         };
         setUser(userData);
         localStorage.setItem('itsm_user', JSON.stringify(userData));
-        return { success: true };
+        return { success: true, user: userData };
       }
-      return { success: false, error: 'Cannot connect to backend server. Please verify backend is running on port 5000.' };
+      return { success: false, error: error.message || 'Invalid credentials' };
+    }
+  };
+
+  const register = async (userData) => {
+    try {
+      const data = await authService.register(userData);
+      if (data.success && data.user) {
+        const newUser = data.user;
+        newUser.role = normalizeRole(newUser.role);
+        setUser(newUser);
+        localStorage.setItem('itsm_user', JSON.stringify(newUser));
+        return { success: true, user: newUser, message: data.message };
+      }
+      return { success: false, error: data.error || 'Failed to create account' };
+    } catch (error) {
+      console.warn('Network error during registration, saving to local state:', error.message);
+      // Fallback offline registration
+      const targetUsername = (userData.username || '').trim();
+      const targetEmail = (userData.email || '').trim().toLowerCase();
+
+      const exists = USERS.some(
+        u => u.username.toLowerCase() === targetUsername.toLowerCase() ||
+             u.email.toLowerCase() === targetEmail
+      );
+      if (exists) {
+        return { success: false, error: 'Username or email already exists.' };
+      }
+
+      const mockUser = {
+        id: `U${Date.now().toString().slice(-4)}`,
+        username: targetUsername,
+        name: userData.name?.trim() || targetUsername,
+        email: targetEmail,
+        role: normalizeRole(userData.role || ROLES.TRAINEE),
+        division: userData.division || 'IT Department',
+        active: true,
+        avatar: (userData.name || targetUsername).slice(0, 2).toUpperCase(),
+      };
+
+      USERS.push(mockUser);
+      setUser(mockUser);
+      localStorage.setItem('itsm_user', JSON.stringify(mockUser));
+      return { success: true, user: mockUser, message: 'Account created successfully (Offline mode)' };
     }
   };
 
@@ -80,7 +113,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, currentUser: user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, currentUser: user, login, logout, register, loading }}>
       {!loading && children}
     </AuthContext.Provider>
   );

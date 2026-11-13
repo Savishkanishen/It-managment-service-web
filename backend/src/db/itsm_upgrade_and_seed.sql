@@ -5,12 +5,180 @@
 -- Can be executed safely in pgAdmin or psql (Idempotent)
 -- =============================================================================
 
+CREATE SCHEMA IF NOT EXISTS itsm;
 SET search_path TO itsm, public;
 
 -- 1. EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA public;
 
--- 2. SCHEMA ALTERATIONS & ENHANCEMENTS (IF NOT EXISTS)
+-- 2. BASE TABLE CREATION (IF NOT EXISTS)
+CREATE TABLE IF NOT EXISTS itsm.divisions (
+  id uuid PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+  name character varying(100) UNIQUE NOT NULL,
+  code character varying(20),
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS itsm.roles (
+  id uuid PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+  name character varying(50) UNIQUE NOT NULL,
+  description text,
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS itsm.users (
+  id uuid PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+  username character varying(50) UNIQUE NOT NULL,
+  email character varying(100) UNIQUE NOT NULL,
+  display_name character varying(100) NOT NULL,
+  password_hash character varying(255) NOT NULL,
+  division_id uuid REFERENCES itsm.divisions(id),
+  role_id uuid REFERENCES itsm.roles(id),
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS itsm.vendors (
+  id uuid PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+  name character varying(100) UNIQUE NOT NULL,
+  specialization character varying(100),
+  contact_details text,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS itsm.assets (
+  id uuid PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+  asset_tag character varying(50) UNIQUE NOT NULL,
+  asset_type character varying(50) NOT NULL,
+  serial_number character varying(100),
+  brand_model character varying(100),
+  status character varying(30) DEFAULT 'Active',
+  division_id uuid REFERENCES itsm.divisions(id),
+  assigned_user_id uuid REFERENCES itsm.users(id),
+  specs jsonb DEFAULT '{}'::jsonb,
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS itsm.stock_items (
+  id uuid PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+  name character varying(100) NOT NULL,
+  category character varying(50) NOT NULL,
+  unit character varying(20) DEFAULT 'units',
+  quantity integer DEFAULT 0,
+  min_threshold integer DEFAULT 3,
+  status character varying(30) DEFAULT 'Available',
+  updated_by character varying(100),
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS itsm.tickets (
+  id uuid PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+  ticket_number character varying(50) UNIQUE NOT NULL,
+  title character varying(255) NOT NULL,
+  description text,
+  category character varying(50),
+  priority character varying(20) DEFAULT 'Medium',
+  status character varying(30) DEFAULT 'Open',
+  requester_id uuid REFERENCES itsm.users(id),
+  assignee_id uuid REFERENCES itsm.users(id),
+  asset_id uuid REFERENCES itsm.assets(id),
+  division_id uuid REFERENCES itsm.divisions(id),
+  notes text,
+  reassignment_request jsonb DEFAULT NULL,
+  parts_used jsonb DEFAULT '[]'::jsonb,
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS itsm.repairs (
+  id uuid PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+  reference_number character varying(50) UNIQUE NOT NULL,
+  asset_id uuid REFERENCES itsm.assets(id),
+  vendor_id uuid REFERENCES itsm.vendors(id),
+  issue_description text,
+  status character varying(30) DEFAULT 'Dispatched',
+  dispatched_by uuid REFERENCES itsm.users(id),
+  expected_return date,
+  dispatch_date date,
+  gate_pass character varying(50),
+  for_reason text,
+  initial_diagnosis text,
+  what_replaced text,
+  total_cost numeric(10,2),
+  invoice character varying(255),
+  notes text,
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS itsm.tasks (
+  id uuid PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+  task_number character varying(50) UNIQUE NOT NULL,
+  title character varying(255) NOT NULL,
+  description text,
+  priority character varying(20) DEFAULT 'Medium',
+  status character varying(30) DEFAULT 'To Do',
+  created_by uuid REFERENCES itsm.users(id),
+  due_date date,
+  start_date date,
+  project character varying(100),
+  department character varying(100),
+  assignees jsonb DEFAULT '[]'::jsonb,
+  subtasks jsonb DEFAULT '[]'::jsonb,
+  hold_reason text,
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS itsm.zoom_requests (
+  id uuid PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+  meeting_name character varying(255) NOT NULL,
+  scheduled_time timestamptz NOT NULL,
+  status character varying(30) DEFAULT 'Pending',
+  requester_id uuid REFERENCES itsm.users(id),
+  assignee_id uuid REFERENCES itsm.users(id),
+  meeting_link text,
+  location character varying(100),
+  meeting_level character varying(50) DEFAULT 'Medium',
+  required_equipment jsonb DEFAULT '[]'::jsonb,
+  link_uploaded_by uuid REFERENCES itsm.users(id),
+  link_uploaded_at timestamptz,
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS itsm.publications (
+  id uuid PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+  title character varying(255) NOT NULL,
+  content text,
+  status character varying(30) DEFAULT 'Pending Review',
+  requested_by uuid REFERENCES itsm.users(id),
+  approved_by uuid REFERENCES itsm.users(id),
+  published_by uuid REFERENCES itsm.users(id),
+  published_at timestamptz,
+  attachments jsonb DEFAULT '[]'::jsonb,
+  requested_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS itsm.audit_logs (
+  id uuid PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+  user_id uuid,
+  action character varying(50) NOT NULL,
+  entity_type character varying(50),
+  entity_id text,
+  description text,
+  module character varying(50),
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. SCHEMA ALTERATIONS & ENHANCEMENTS (IF NOT EXISTS)
 DO $$
 BEGIN
   -- itsm.stock_items enhancements
@@ -374,11 +542,16 @@ VALUES
   ('dddddddd-dddd-dddd-dddd-dddddddd0011', 'ed08ee60-c54b-40f5-8273-34c5439eaa8b', 'LOGIN', 'Session', 'ed08ee60-c54b-40f5-8273-34c5439eaa8b', 'Super Admin logged in from 192.168.1.5', 'Authentication', '2026-09-08 10:00:00+05:30')
 ON CONFLICT (id) DO NOTHING;
 
--- 15. GRANT PERMISSIONS TO itsm_admin
-GRANT ALL ON SCHEMA itsm TO itsm_admin;
-GRANT ALL ON ALL TABLES IN SCHEMA itsm TO itsm_admin;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA itsm TO itsm_admin;
-GRANT ALL ON ALL FUNCTIONS IN SCHEMA itsm TO itsm_admin;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA itsm GRANT ALL ON TABLES TO itsm_admin;
+-- 15. GRANT PERMISSIONS (IF itsm_admin ROLE EXISTS)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'itsm_admin') THEN
+    GRANT ALL ON SCHEMA itsm TO itsm_admin;
+    GRANT ALL ON ALL TABLES IN SCHEMA itsm TO itsm_admin;
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA itsm TO itsm_admin;
+    GRANT ALL ON ALL FUNCTIONS IN SCHEMA itsm TO itsm_admin;
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA itsm GRANT ALL ON TABLES TO itsm_admin;
+  END IF;
+END $$;
 
 -- Upgrade completed successfully.
