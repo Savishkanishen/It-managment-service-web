@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { normalizeRole, denormalizeRole } = require('../utils/roleHelper');
+const { hashPassword, comparePassword } = require('../utils/passwordHelper');
 
 /**
  * Authentication Business Logic & Database Queries
@@ -39,10 +40,22 @@ class AuthService {
       throw error;
     }
 
-    if (password !== user.password_hash) {
+    const passwordCheck = await comparePassword(password, user.password_hash);
+    if (!passwordCheck.matches) {
       const error = new Error('Invalid username or password');
       error.statusCode = 401;
       throw error;
+    }
+
+    // Auto-upgrade legacy plaintext passwords to modern bcrypt hash
+    if (passwordCheck.needsRehash) {
+      try {
+        const modernHash = await hashPassword(password);
+        await db.query('UPDATE itsm.users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [modernHash, user.id]);
+        console.log(`[Security] Upgraded password for user ${user.username} to modern bcrypt hash.`);
+      } catch (upgradeErr) {
+        console.warn('Could not auto-upgrade legacy password hash:', upgradeErr.message);
+      }
     }
 
     const normalizedRole = normalizeRole(user.role_name);
@@ -125,17 +138,40 @@ class AuthService {
       throw error;
     }
 
-    // Resolve role (default: Trainee)
+    // ── Resolve role robustly ──────────────────────────────────────────
     const targetRoleName = denormalizeRole(role || 'trainee');
+    console.log(`[AuthService] register role resolution: input="${role}" → denormalized="${targetRoleName}"`);
+
     let roleRes = await db.query(
       'SELECT id, name FROM itsm.roles WHERE LOWER(name) = LOWER($1)',
       [targetRoleName]
     );
+
+    // Fuzzy fallback: try ILIKE if exact match missed
     if (roleRes.rows.length === 0) {
-      roleRes = await db.query("SELECT id, name FROM itsm.roles WHERE LOWER(name) = 'trainee' LIMIT 1");
+      console.warn(`[AuthService] Exact role match failed for "${targetRoleName}", trying fuzzy match...`);
+      roleRes = await db.query(
+        "SELECT id, name FROM itsm.roles WHERE LOWER(name) ILIKE '%' || LOWER($1) || '%' LIMIT 1",
+        [targetRoleName.split(' ')[0]]
+      );
     }
+
+    // Last resort: auto-create the role
+    if (roleRes.rows.length === 0) {
+      console.warn(`[AuthService] No role found for "${targetRoleName}", inserting it into itsm.roles...`);
+      try {
+        roleRes = await db.query(
+          'INSERT INTO itsm.roles (name, description) VALUES ($1, $2) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id, name',
+          [targetRoleName, `Auto-created role: ${targetRoleName}`]
+        );
+      } catch (insertErr) {
+        console.error('[AuthService] Failed to auto-create role:', insertErr.message);
+      }
+    }
+
     const roleId = roleRes.rows[0]?.id || null;
-    const finalRoleName = roleRes.rows[0]?.name || 'Trainee';
+    const finalRoleName = roleRes.rows[0]?.name || targetRoleName;
+    console.log(`[AuthService] Final role: id=${roleId}, name="${finalRoleName}"`);
 
     // Resolve division (default: Information Technology)
     let divisionId = null;
@@ -166,12 +202,15 @@ class AuthService {
       }
     }
 
+    // Hash password with modern bcrypt before persisting
+    const modernHashedPassword = await hashPassword(password.trim());
+
     // Insert user
     const { rows } = await db.query(
       `INSERT INTO itsm.users (username, email, display_name, password_hash, role_id, division_id, is_active)
        VALUES ($1, $2, $3, $4, $5, $6, true)
        RETURNING id, username, email, display_name, is_active`,
-      [username.trim(), email.trim().toLowerCase(), name.trim(), password.trim(), roleId, divisionId]
+      [username.trim(), email.trim().toLowerCase(), name.trim(), modernHashedPassword, roleId, divisionId]
     );
 
     const newUser = rows[0];

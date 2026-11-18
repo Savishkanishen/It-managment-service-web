@@ -3,19 +3,24 @@ import { Link } from 'react-router-dom';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { Badge, PriorityBadge } from '../../components/ui/Badge';
-import { calcTaskProgress } from '../../data/mockData';
-import { CalendarDays } from 'lucide-react';
+import { calcTaskProgress, ROLES, isTaskAssignedToUser } from '../../data/mockData';
+import { CalendarDays, Lock } from 'lucide-react';
 
 export default function TaskCalendarPage() {
   const { tasks } = useData();
+  const { currentUser } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role);
+  const visibleTasks = isAdmin ? tasks : tasks.filter(t => isTaskAssignedToUser(t, currentUser));
 
   const dateStr = (d) => new Date(d).toDateString();
   const selectedStr = selectedDate.toDateString();
 
-  const tasksOnDate = (date) => tasks.filter(t => dateStr(t.dueDate) === date.toDateString());
-  const todayTasks = tasks.filter(t => dateStr(t.dueDate) === selectedStr);
+  const tasksOnDate = (date) => visibleTasks.filter(t => dateStr(t.dueDate) === date.toDateString());
+  const todayTasks = visibleTasks.filter(t => dateStr(t.dueDate) === selectedStr);
 
   const tileContent = ({ date, view }) => {
     if (view !== 'month') return null;
@@ -35,6 +40,26 @@ export default function TaskCalendarPage() {
       <div className="page-header">
         <div className="page-header-left"><h1>Task Calendar</h1><p>Deadline & milestone calendar view</p></div>
       </div>
+
+      {!isAdmin && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'rgba(6, 182, 212, 0.08)',
+          border: '1px solid rgba(6, 182, 212, 0.25)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 14px',
+          marginBottom: '16px',
+          fontSize: '0.82rem',
+          color: 'var(--teal-700)'
+        }}>
+          <Lock size={15} color="var(--teal-600)" style={{ flexShrink: 0 }} />
+          <span>
+            <strong>Private Calendar:</strong> Showing only milestones and deadlines for your assigned tasks. Other members' schedules are private.
+          </span>
+        </div>
+      )}
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 380px', gap:24 }}>
         <div>

@@ -24,10 +24,48 @@ function formatTask(t) {
   };
 }
 
-// GET /api/tasks - Get all tasks
+// GET /api/tasks - Get all tasks (Non-admin members only see tasks assigned to them)
 router.get('/', async (req, res) => {
+  const requestingUserId = req.headers['x-user-id'] || req.query.userId;
   try {
-    const { rows } = await db.query('SELECT * FROM itsm.tasks ORDER BY created_at DESC');
+    let isManager = true;
+    let resolvedUser = null;
+
+    if (requestingUserId) {
+      const uRes = await db.query(
+        `SELECT u.id, u.username, r.name as role_name 
+         FROM itsm.users u 
+         LEFT JOIN itsm.roles r ON u.role_id = r.id 
+         WHERE u.id::text = $1 OR LOWER(u.username) = LOWER($1)`,
+        [requestingUserId]
+      );
+      if (uRes.rows.length > 0) {
+        resolvedUser = uRes.rows[0];
+        const role = (resolvedUser.role_name || '').toLowerCase();
+        // Only Super Admin and IT Admin can see all members' assigned works
+        if (!role.includes('super') && !role.includes('it_admin') && role !== 'it') {
+          isManager = false;
+        }
+      }
+    }
+
+    let queryText = 'SELECT * FROM itsm.tasks ORDER BY created_at DESC';
+    let queryParams = [];
+
+    if (!isManager && resolvedUser) {
+      queryText = `
+        SELECT * FROM itsm.tasks 
+        WHERE created_by = $1
+           OR assignees::text ILIKE '%' || $1 || '%'
+           OR assignees::text ILIKE '%' || $2 || '%'
+           OR subtasks::text ILIKE '%' || $1 || '%'
+           OR subtasks::text ILIKE '%' || $2 || '%'
+        ORDER BY created_at DESC
+      `;
+      queryParams = [resolvedUser.id, resolvedUser.username];
+    }
+
+    const { rows } = await db.query(queryText, queryParams);
     res.json(rows.map(formatTask));
   } catch (err) {
     console.error('Error fetching tasks:', err);

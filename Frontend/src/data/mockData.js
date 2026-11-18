@@ -267,3 +267,49 @@ export const STATUS_COLORS = {
   'Pending Review': 'badge-amber',
   'Draft': 'badge-gray',
 };
+
+/**
+ * Checks whether a task is assigned to or created by a user
+ */
+export const isTaskAssignedToUser = (task, user) => {
+  if (!task || !user) return false;
+  const uid = String(user.id || '').toLowerCase();
+  const uname = String(user.username || '').toLowerCase();
+  const uName = String(user.name || '').toLowerCase();
+
+  const inAssignees = (task.assignees || []).some(a => {
+    const str = String(a || '').toLowerCase();
+    return str === uid || str === uname || str === uName;
+  });
+
+  const inSubtasks = (task.subtasks || []).some(s => {
+    const str = String(s?.assignee || '').toLowerCase();
+    return str === uid || str === uname || str === uName;
+  });
+
+  const isCreator = String(task.createdBy || '').toLowerCase() === uid
+    || String(task.createdBy || '').toLowerCase() === uname;
+
+  return inAssignees || inSubtasks || isCreator;
+};
+
+/**
+ * Checks whether a ticket is assigned to or requested by a user
+ */
+export const isTicketAssignedToUser = (ticket, user) => {
+  if (!ticket || !user) return false;
+  const uid = String(user.id || '').toLowerCase();
+  const uname = String(user.username || '').toLowerCase();
+
+  const isAssignee = String(ticket.assignedTo || '').toLowerCase() === uid
+    || String(ticket.assignedTo || '').toLowerCase() === uname
+    || String(ticket.assigneeId || '').toLowerCase() === uid
+    || String(ticket.assigneeId || '').toLowerCase() === uname;
+
+  const isRequester = String(ticket.requesterId || '').toLowerCase() === uid
+    || String(ticket.requesterId || '').toLowerCase() === uname
+    || String(ticket.reportedBy || '').toLowerCase() === uid;
+
+  return isAssignee || isRequester;
+};
+

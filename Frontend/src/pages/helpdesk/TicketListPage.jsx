@@ -5,8 +5,8 @@ import { useAuth } from '../../context/AuthContext';
 import DataTable from '../../components/ui/DataTable';
 import { Badge, CategoryBadge, PriorityBadge } from '../../components/ui/Badge';
 import StatCard from '../../components/ui/StatCard';
-import { getTicketStats, getUser, ROLES } from '../../data/mockData';
-import { Ticket, Plus, Search, AlertCircle, CheckCircle, Clock, RefreshCw, XCircle } from 'lucide-react';
+import { getTicketStats, getUser, ROLES, isTicketAssignedToUser } from '../../data/mockData';
+import { Ticket, Plus, Search, AlertCircle, CheckCircle, Clock, RefreshCw, XCircle, Lock } from 'lucide-react';
 
 const STATUS_ORDER = ['New', 'Assigned', 'In Progress', 'Pending Parts', 'Resolved', 'Closed'];
 
@@ -18,18 +18,22 @@ export default function TicketListPage() {
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [search, setSearch] = useState('');
 
+  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role);
   const isTrainee = currentUser.role === ROLES.TRAINEE;
-  const pendingReassignCount = tickets.filter(t => t.reassignmentRequest?.status === 'Pending').length;
-  const resolvedCount = tickets.filter(t => t.status === 'Resolved').length;
-  const openCount = tickets.filter(t => ['New', 'Assigned', 'In Progress', 'Pending Parts'].includes(t.status)).length;
 
-  const filtered = tickets.filter(t => {
+  // Privacy Rule: Non-admin members only see tickets assigned to them or reported by them
+  const visibleTickets = isAdmin ? tickets : tickets.filter(t => isTicketAssignedToUser(t, currentUser));
+
+  const pendingReassignCount = visibleTickets.filter(t => t.reassignmentRequest?.status === 'Pending').length;
+  const resolvedCount = visibleTickets.filter(t => t.status === 'Resolved').length;
+  const openCount = visibleTickets.filter(t => ['New', 'Assigned', 'In Progress', 'Pending Parts'].includes(t.status)).length;
+
+  const filtered = visibleTickets.filter(t => {
     const matchCat = categoryFilter === 'All' || t.category === categoryFilter;
     const matchStatus = statusFilter === 'All' || t.status === statusFilter;
     const matchPri = priorityFilter === 'All' || t.priority === priorityFilter;
     const matchSearch = !search || [t.id, t.ticketNumber, t.title, t.division].some(v => v?.toLowerCase().includes(search.toLowerCase()));
-    const matchOwn = !isTrainee || t.assignedTo === currentUser?.id || t.assignedTo === currentUser?.username;
-    return matchCat && matchStatus && matchPri && matchSearch && matchOwn;
+    return matchCat && matchStatus && matchPri && matchSearch;
   });
 
   const columns = [
@@ -70,8 +74,28 @@ export default function TicketListPage() {
         </div>
       </div>
 
+      {!isAdmin && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'rgba(6, 182, 212, 0.08)',
+          border: '1px solid rgba(6, 182, 212, 0.25)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 14px',
+          marginBottom: '16px',
+          fontSize: '0.82rem',
+          color: 'var(--teal-700)'
+        }}>
+          <Lock size={15} color="var(--teal-600)" style={{ flexShrink: 0 }} />
+          <span>
+            <strong>Private Helpdesk:</strong> Showing only tickets assigned directly to you or reported by you. Other members' tickets are restricted.
+          </span>
+        </div>
+      )}
+
       <div className="stats-grid">
-        <StatCard label="Total Tickets" value={tickets.length} icon={Ticket} iconBg="rgba(6,182,212,0.1)" iconColor="var(--teal-500)" accentColor="var(--teal-500)" />
+        <StatCard label="Total Tickets" value={visibleTickets.length} icon={Ticket} iconBg="rgba(6,182,212,0.1)" iconColor="var(--teal-500)" accentColor="var(--teal-500)" />
         <StatCard label="Open / Active" value={openCount} icon={Clock} iconBg="rgba(245,158,11,0.1)" iconColor="var(--warning-500)" accentColor="var(--warning-500)" />
         <StatCard label="Resolved" value={resolvedCount} icon={CheckCircle} iconBg="rgba(16,185,129,0.1)" iconColor="var(--success-500)" accentColor="var(--success-500)" />
         <StatCard label="Reassign Pending" value={pendingReassignCount} icon={AlertCircle} iconBg={pendingReassignCount > 0 ? 'rgba(244,63,94,0.1)' : 'rgba(16,185,129,0.1)'} iconColor={pendingReassignCount > 0 ? 'var(--danger-500)' : 'var(--success-500)'} accentColor={pendingReassignCount > 0 ? 'var(--danger-500)' : 'var(--success-500)'} />

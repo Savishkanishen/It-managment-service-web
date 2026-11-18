@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useNotifications } from './NotificationContext';
 import {
   USERS, DIVISIONS, ASSETS, STOCK_ITEMS, TICKETS,
   REPAIRS, VENDORS, ZOOM_REQUESTS, PUBLICATIONS, TASKS, AUDIT_LOGS,
@@ -11,6 +12,7 @@ const DataContext = createContext(null);
 const API_BASE = 'http://localhost:5000/api';
 
 export function DataProvider({ children }) {
+  const { notifyWorkAssignment } = useNotifications() || {};
   const [divisions, setDivisions] = useState(DIVISIONS);
   const [assets, setAssets] = useState(ASSETS);
   const [stock, setStock] = useState(STOCK_ITEMS);
@@ -193,6 +195,19 @@ export function DataProvider({ children }) {
   const assignTicket = (id, assigneeId, user) => {
     setTickets(prev => prev.map(t => (t.id === id || t.ticketNumber === id) ? { ...t, assignedTo: assigneeId, status: t.status === 'New' ? 'Assigned' : t.status, reassignmentRequest: null, updatedAt: new Date().toISOString() } : t));
     addAuditLog(user?.id, user?.username || user?.name, 'ASSIGN', 'Ticket', id, `Assigned ticket to user ${assigneeId}`, 'Helpdesk');
+
+    // Send direct assignment alert to assigned member
+    const targetTicket = tickets.find(t => t.id === id || t.ticketNumber === id);
+    if (notifyWorkAssignment && assigneeId) {
+      notifyWorkAssignment({
+        type: 'ticket',
+        workId: id,
+        workTitle: targetTicket?.title || `Ticket ${id}`,
+        assigneeId,
+        assignedBy: user?.name || user?.username || 'IT Admin',
+      });
+    }
+
     apiCall(`/tickets/${id}/assign`, 'PATCH', { assigneeId });
   };
 
@@ -284,6 +299,19 @@ export function DataProvider({ children }) {
     };
     setTasks(prev => [newTask, ...prev]);
     addAuditLog(user?.id, user?.username || user?.name, 'CREATE', 'Task', newTask.id, `Created task: ${taskData.title}`, 'Task Management');
+
+    // Send direct assignment alert to each assigned member
+    if (notifyWorkAssignment && Array.isArray(taskData.assignees)) {
+      taskData.assignees.forEach(assigneeId => {
+        notifyWorkAssignment({
+          type: 'task',
+          workId: newTask.id,
+          workTitle: taskData.title,
+          assigneeId,
+          assignedBy: user?.name || user?.username || 'Supervisor',
+        });
+      });
+    }
     const serverResult = await apiCall('/tasks', 'POST', { ...taskData, createdBy: user?.id });
     if (serverResult) {
       setTasks(prev => prev.map(t => t.id === newTask.id ? serverResult : t));

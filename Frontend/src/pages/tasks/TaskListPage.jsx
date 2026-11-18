@@ -6,8 +6,8 @@ import DataTable from '../../components/ui/DataTable';
 import { Badge, PriorityBadge } from '../../components/ui/Badge';
 import ProgressBar from '../../components/ui/ProgressBar';
 import HoldReasonModal from '../../components/ui/HoldReasonModal';
-import { calcTaskProgress, getUser, ROLES } from '../../data/mockData';
-import { Search, Plus, Kanban, Calendar } from 'lucide-react';
+import { calcTaskProgress, getUser, ROLES, isTaskAssignedToUser } from '../../data/mockData';
+import { Search, Plus, Kanban, Calendar, Lock } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import { useNotifications } from '../../context/NotificationContext';
 import { USERS } from '../../data/mockData';
@@ -25,7 +25,10 @@ export default function TaskListPage() {
 
   const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role);
 
-  const filtered = tasks.filter(t => {
+  // Privacy Rule: Non-admin members only see tasks assigned to them or created by them
+  const visibleTasks = isAdmin ? tasks : tasks.filter(t => isTaskAssignedToUser(t, currentUser));
+
+  const filtered = visibleTasks.filter(t => {
     const matchSearch = !search || [t.id, t.title, t.project].some(v => v?.toLowerCase().includes(search.toLowerCase()));
     const matchStatus = statusFilter === 'All' || t.status === statusFilter;
     const matchPri = priorityFilter === 'All' || t.priority === priorityFilter;
@@ -112,6 +115,26 @@ export default function TaskListPage() {
           {isAdmin && <button className="btn btn-primary" onClick={() => setShowNew(true)}><Plus size={15} /> New Task</button>}
         </div>
       </div>
+
+      {!isAdmin && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'rgba(6, 182, 212, 0.08)',
+          border: '1px solid rgba(6, 182, 212, 0.25)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 14px',
+          marginBottom: '16px',
+          fontSize: '0.82rem',
+          color: 'var(--teal-700)'
+        }}>
+          <Lock size={15} color="var(--teal-600)" style={{ flexShrink: 0 }} />
+          <span>
+            <strong>Private Workspace:</strong> You only see tasks assigned directly to you. Other members' assigned works are private.
+          </span>
+        </div>
+      )}
 
       <div className="table-container">
         <div className="table-toolbar">

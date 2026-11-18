@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { normalizeRole, denormalizeRole } = require('../utils/roleHelper');
+const { hashPassword } = require('../utils/passwordHelper');
 
 /**
  * User Service - Database operations for Users
@@ -31,10 +32,18 @@ class UserService {
   async updateRole(userIdOrUsername, role) {
     const targetRoleName = denormalizeRole(role);
 
-    const roleRes = await db.query(
+    let roleRes = await db.query(
       'SELECT id, name FROM itsm.roles WHERE LOWER(name) = LOWER($1)',
       [targetRoleName]
     );
+
+    // Fuzzy fallback
+    if (roleRes.rows.length === 0) {
+      roleRes = await db.query(
+        "SELECT id, name FROM itsm.roles WHERE LOWER(name) ILIKE '%' || LOWER($1) || '%' LIMIT 1",
+        [targetRoleName.split(' ')[0]]
+      );
+    }
 
     if (roleRes.rows.length === 0) {
       const error = new Error(`Role '${role}' not recognized`);
@@ -96,9 +105,40 @@ class UserService {
       throw error;
     }
 
+    // ── Resolve role robustly ──────────────────────────────────────────
     const targetRoleName = denormalizeRole(role || 'trainee');
-    const roleRes = await db.query('SELECT id, name FROM itsm.roles WHERE LOWER(name) = LOWER($1)', [targetRoleName]);
+    console.log(`[UserService] createUser role resolution: input="${role}" → denormalized="${targetRoleName}"`);
+
+    let roleRes = await db.query(
+      'SELECT id, name FROM itsm.roles WHERE LOWER(name) = LOWER($1)',
+      [targetRoleName]
+    );
+
+    // Fuzzy fallback: try ILIKE if exact match missed
+    if (roleRes.rows.length === 0) {
+      console.warn(`[UserService] Exact role match failed for "${targetRoleName}", trying fuzzy match...`);
+      roleRes = await db.query(
+        "SELECT id, name FROM itsm.roles WHERE LOWER(name) ILIKE '%' || LOWER($1) || '%' LIMIT 1",
+        [targetRoleName.split(' ')[0]]  // e.g. 'Super' from 'Super Admin'
+      );
+    }
+
+    // Last resort: auto-create the role if the table has no matching row
+    if (roleRes.rows.length === 0) {
+      console.warn(`[UserService] No role found for "${targetRoleName}", inserting it into itsm.roles...`);
+      try {
+        roleRes = await db.query(
+          'INSERT INTO itsm.roles (name, description) VALUES ($1, $2) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id, name',
+          [targetRoleName, `Auto-created role: ${targetRoleName}`]
+        );
+      } catch (insertErr) {
+        console.error('[UserService] Failed to auto-create role:', insertErr.message);
+      }
+    }
+
     const roleId = roleRes.rows[0]?.id || null;
+    const finalRoleName = roleRes.rows[0]?.name || targetRoleName;
+    console.log(`[UserService] Final role: id=${roleId}, name="${finalRoleName}"`);
 
     let divisionId = null;
     let divisionName = division || 'Information Technology';
@@ -126,10 +166,13 @@ class UserService {
       }
     }
 
+    const rawPassword = password ? password.trim() : 'password123';
+    const modernHashedPassword = await hashPassword(rawPassword);
+
     const { rows } = await db.query(
       `INSERT INTO itsm.users (username, email, display_name, password_hash, role_id, division_id, is_active)
        VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING *`,
-      [username.trim(), email.trim().toLowerCase(), name.trim(), password ? password.trim() : 'password123', roleId, divisionId]
+      [username.trim(), email.trim().toLowerCase(), name.trim(), modernHashedPassword, roleId, divisionId]
     );
 
     const newUser = rows[0];
@@ -152,8 +195,8 @@ class UserService {
       name: newUser.display_name,
       username: newUser.username,
       email: newUser.email,
-      role: normalizeRole(targetRoleName),
-      roleName: targetRoleName,
+      role: normalizeRole(finalRoleName),
+      roleName: finalRoleName,
       division: divisionName,
       active: newUser.is_active,
       avatar: newUser.display_name ? newUser.display_name.slice(0, 2).toUpperCase() : 'US',

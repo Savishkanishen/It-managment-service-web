@@ -11,13 +11,13 @@ import AppRoutes from './routes/AppRoutes';
 export default function App() {
   return (
     <AuthProvider>
-      <DataProvider>
-        <NotificationProvider>
+      <NotificationProvider>
+        <DataProvider>
           <BrowserRouter>
             <AppRoutes />
           </BrowserRouter>
-        </NotificationProvider>
-      </DataProvider>
+        </DataProvider>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

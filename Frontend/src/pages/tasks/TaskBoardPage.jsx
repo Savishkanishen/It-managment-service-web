@@ -7,8 +7,8 @@ import { useNotifications } from '../../context/NotificationContext';
 import { Badge, PriorityBadge } from '../../components/ui/Badge';
 import ProgressBar from '../../components/ui/ProgressBar';
 import HoldReasonModal from '../../components/ui/HoldReasonModal';
-import { calcTaskProgress, getUser } from '../../data/mockData';
-import { Kanban, Calendar, Clock } from 'lucide-react';
+import { calcTaskProgress, getUser, ROLES, isTaskAssignedToUser } from '../../data/mockData';
+import { Kanban, Calendar, Clock, Lock } from 'lucide-react';
 
 const COLUMNS = [
   { id: 'To Do', label: 'To Do', color: '#3b82f6', bg: '#eff6ff' },
@@ -24,8 +24,11 @@ export default function TaskBoardPage() {
   const { addToast } = useNotifications();
   const [pendingDragTask, setPendingDragTask] = useState(null);
 
+  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role);
+  const visibleTasks = isAdmin ? tasks : tasks.filter(t => isTaskAssignedToUser(t, currentUser));
+
   const grouped = COLUMNS.reduce((acc, col) => {
-    acc[col.id] = tasks.filter(t => t.status === col.id);
+    acc[col.id] = visibleTasks.filter(t => t.status === col.id);
     return acc;
   }, {});
 
@@ -63,6 +66,26 @@ export default function TaskBoardPage() {
           <Link to="/tasks/calendar" className="btn btn-secondary btn-sm"><Calendar size={14} /> Calendar</Link>
         </div>
       </div>
+
+      {!isAdmin && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'rgba(6, 182, 212, 0.08)',
+          border: '1px solid rgba(6, 182, 212, 0.25)',
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 14px',
+          marginBottom: '16px',
+          fontSize: '0.82rem',
+          color: 'var(--teal-700)'
+        }}>
+          <Lock size={15} color="var(--teal-600)" style={{ flexShrink: 0 }} />
+          <span>
+            <strong>Private Board:</strong> Displaying only tasks assigned directly to you. Other members' assigned works are private.
+          </span>
+        </div>
+      )}
 
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="kanban-board">

@@ -19,7 +19,10 @@ export default function TraineeDashboard() {
   const [reassignReason, setReassignReason] = useState('');
   const [holdModalTask, setHoldModalTask] = useState(null);
 
-  const isMatchUser = (uid) => uid === currentUser?.id || uid === currentUser?.username;
+  const isMatchUser = (uid) => uid && (
+    String(uid).toLowerCase() === String(currentUser?.id || '').toLowerCase() ||
+    String(uid).toLowerCase() === String(currentUser?.username || '').toLowerCase()
+  );
   const myTickets = tickets.filter(t => isMatchUser(t.assignedTo) && ['New','Assigned','In Progress','Pending Parts'].includes(t.status));
   const myTasks = tasks.filter(t => (t.assignees || []).some(isMatchUser));
   const resolvedCount = tickets.filter(t => isMatchUser(t.assignedTo) && ['Resolved','Closed'].includes(t.status)).length;

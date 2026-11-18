@@ -6,8 +6,8 @@ import { useNotifications } from '../../context/NotificationContext';
 import { Badge, PriorityBadge } from '../../components/ui/Badge';
 import ProgressBar from '../../components/ui/ProgressBar';
 import HoldReasonModal from '../../components/ui/HoldReasonModal';
-import { calcTaskProgress, getUser, ROLES } from '../../data/mockData';
-import { ArrowLeft, CheckSquare, User, Calendar, Flag, Plus, Check, PauseCircle } from 'lucide-react';
+import { calcTaskProgress, getUser, ROLES, isTaskAssignedToUser } from '../../data/mockData';
+import { ArrowLeft, CheckSquare, User, Calendar, Flag, Plus, Check, PauseCircle, Lock } from 'lucide-react';
 
 export default function TaskDetailPage() {
   const { id } = useParams();
@@ -19,9 +19,24 @@ export default function TaskDetailPage() {
   const task = tasks.find(t => t.id === id);
   if (!task) return <div style={{ padding:40, textAlign:'center', color:'var(--gray-400)' }}>Task not found</div>;
 
+  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role);
+  if (!isAdmin && !isTaskAssignedToUser(task, currentUser)) {
+    return (
+      <div style={{ padding: 48, textAlign: 'center' }}>
+        <div style={{ display: 'inline-flex', padding: '16px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '50%', color: 'var(--danger-500)', marginBottom: '16px' }}>
+          <Lock size={32} />
+        </div>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px' }}>Private Work Item</h2>
+        <p style={{ color: 'var(--gray-500)', maxWidth: 440, margin: '0 auto 20px', fontSize: '0.875rem' }}>
+          This task is assigned to another member. You do not have permission to view other members' assigned works.
+        </p>
+        <Link to="/tasks/list" className="btn btn-secondary">Back to Task List</Link>
+      </div>
+    );
+  }
+
   const progress = calcTaskProgress(task);
   const assignees = (task.assignees || []).map(id => getUser(id)).filter(Boolean);
-  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role);
   const isAssignee = (task.assignees || []).includes(currentUser.id);
   const isTrainee = currentUser.role === ROLES.TRAINEE;
 

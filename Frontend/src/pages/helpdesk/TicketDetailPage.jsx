@@ -5,8 +5,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { Badge, CategoryBadge, PriorityBadge } from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { getUser, USERS, ROLES, getAsset } from '../../data/mockData';
-import { ArrowLeft, User, Calendar, Tag, RefreshCw, CheckCircle, ChevronRight, XCircle } from 'lucide-react';
+import { getUser, USERS, ROLES, getAsset, isTicketAssignedToUser } from '../../data/mockData';
+import { ArrowLeft, User, Calendar, Tag, RefreshCw, CheckCircle, ChevronRight, XCircle, Lock } from 'lucide-react';
 
 const STATUS_FLOW = ['New', 'Assigned', 'In Progress', 'Pending Parts', 'Resolved', 'Closed'];
 
@@ -25,9 +25,24 @@ export default function TicketDetailPage() {
   const ticket = tickets.find(t => t.id === id || t.ticketNumber === id);
   if (!ticket) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>Ticket not found</div>;
 
+  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser?.role);
+  if (!isAdmin && !isTicketAssignedToUser(ticket, currentUser)) {
+    return (
+      <div style={{ padding: 48, textAlign: 'center' }}>
+        <div style={{ display: 'inline-flex', padding: '16px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '50%', color: 'var(--danger-500)', marginBottom: '16px' }}>
+          <Lock size={32} />
+        </div>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px' }}>Private Work Item</h2>
+        <p style={{ color: 'var(--gray-500)', maxWidth: 440, margin: '0 auto 20px', fontSize: '0.875rem' }}>
+          This ticket is assigned to another member. You do not have permission to view other members' assigned works.
+        </p>
+        <Link to="/helpdesk" className="btn btn-secondary">Back to Helpdesk</Link>
+      </div>
+    );
+  }
+
   const assignedUser = getUser(ticket.assignedTo);
   const asset = ticket.assetId ? getAsset(ticket.assetId) : null;
-  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser?.role);
   const isAssignee = ticket.assignedTo === currentUser?.id || ticket.assignedTo === currentUser?.username;
   const currentStatusIdx = STATUS_FLOW.indexOf(ticket.status);
   const nextStatus = STATUS_FLOW[currentStatusIdx + 1];

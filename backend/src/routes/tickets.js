@@ -40,10 +40,39 @@ const TICKET_SELECT = `
   LEFT JOIN itsm.users u ON t.assignee_id = u.id
 `;
 
-// GET /api/tickets - Get all tickets
+// GET /api/tickets - Get all tickets (Non-admin members only see their assigned or requested tickets)
 router.get('/', async (req, res) => {
+  const requestingUserId = req.headers['x-user-id'] || req.query.userId;
   try {
-    const { rows } = await db.query(`${TICKET_SELECT} ORDER BY t.created_at DESC`);
+    let isManager = true;
+    let resolvedUser = null;
+
+    if (requestingUserId) {
+      const uRes = await db.query(
+        `SELECT u.id, u.username, r.name as role_name 
+         FROM itsm.users u 
+         LEFT JOIN itsm.roles r ON u.role_id = r.id 
+         WHERE u.id::text = $1 OR LOWER(u.username) = LOWER($1)`,
+        [requestingUserId]
+      );
+      if (uRes.rows.length > 0) {
+        resolvedUser = uRes.rows[0];
+        const role = (resolvedUser.role_name || '').toLowerCase();
+        if (!role.includes('super') && !role.includes('it_admin') && role !== 'it') {
+          isManager = false;
+        }
+      }
+    }
+
+    let queryText = `${TICKET_SELECT} ORDER BY t.created_at DESC`;
+    let queryParams = [];
+
+    if (!isManager && resolvedUser) {
+      queryText = `${TICKET_SELECT} WHERE t.assignee_id = $1 OR t.requester_id = $1 ORDER BY t.created_at DESC`;
+      queryParams = [resolvedUser.id];
+    }
+
+    const { rows } = await db.query(queryText, queryParams);
     res.json(rows.map(formatTicket));
   } catch (err) {
     console.error('Error fetching tickets:', err);
