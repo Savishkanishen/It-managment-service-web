@@ -94,6 +94,9 @@ export default function SignUpPage() {
     if (form.password !== form.confirmPassword) {
       return setError('Passwords do not match');
     }
+    if (form.role === ROLES.IT_ADMIN || form.role === ROLES.SUPER_ADMIN) {
+      return setError('Admin accounts cannot be self-registered. An IT Administrator must create this account via the IT Admin Dashboard.');
+    }
 
     setLoading(true);
 
@@ -312,11 +315,33 @@ export default function SignUpPage() {
                   >
                     <option value={ROLES.TRAINEE}>Trainee / Staff</option>
                     <option value={ROLES.ZOOM_REQUESTER}>Zoom Requester</option>
-                    <option value={ROLES.IT_ADMIN}>IT Admin</option>
+                    <option value={ROLES.IT_ADMIN}>IT Admin (Requires IT Admin creation)</option>
                   </select>
                 </div>
               </div>
             </div>
+
+            {/* Admin Provisioning Warning Alert */}
+            {(form.role === ROLES.IT_ADMIN || form.role === ROLES.SUPER_ADMIN) && (
+              <div style={{
+                marginBottom: '16px',
+                padding: '10px 14px',
+                background: 'rgba(245, 158, 11, 0.08)',
+                border: '1px solid rgba(245, 158, 11, 0.28)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '0.78rem',
+                color: 'var(--warning-700)',
+                lineHeight: 1.45,
+                display: 'flex',
+                gap: 10,
+                alignItems: 'flex-start'
+              }}>
+                <AlertCircle size={16} color="var(--warning-600)" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <strong>Admin Provisioning Required:</strong> Admin accounts cannot be self-registered publicly. They must be created directly by an <strong>IT Administrator</strong> using the <strong>IT Admin Dashboard</strong>. Please contact an IT Administrator or select <em>Trainee / Staff</em>.
+                </div>
+              </div>
+            )}
 
             {/* Row 3: Password & Confirm Password */}
             <div className="form-row" style={{ marginBottom: '18px' }}>

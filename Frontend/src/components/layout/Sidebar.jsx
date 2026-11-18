@@ -113,7 +113,7 @@ export default function Sidebar() {
               </NavSection>
             )}
 
-            {isSuperAdmin && (
+            {(isSuperAdmin || isITAdmin) && (
               <NavSection label="Administration">
                 <NavItem to="/users" icon={Users} label="User Management" badge={pendingReassignments > 0 ? pendingReassignments : null} />
               </NavSection>

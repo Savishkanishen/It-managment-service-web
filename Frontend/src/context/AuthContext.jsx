@@ -83,7 +83,23 @@ export const AuthProvider = ({ children }) => {
       }
       return { success: false, error: data.error || 'Failed to create account' };
     } catch (error) {
+      if (error.response?.data?.error) {
+        return { success: false, error: error.response.data.error };
+      }
+      if (error.message && error.message.includes('Admin accounts cannot be self-registered')) {
+        return { success: false, error: error.message };
+      }
+
       console.warn('Network error during registration, saving to local state:', error.message);
+      // Enforce admin restriction even in offline fallback
+      const requestedRole = normalizeRole(userData.role);
+      if (requestedRole === ROLES.SUPER_ADMIN || requestedRole === ROLES.IT_ADMIN) {
+        return {
+          success: false,
+          error: 'Admin accounts cannot be self-registered. An IT Administrator must create this account via the IT Admin Dashboard.'
+        };
+      }
+
       // Fallback offline registration
       const targetUsername = (userData.username || '').trim();
       const targetEmail = (userData.email || '').trim().toLowerCase();

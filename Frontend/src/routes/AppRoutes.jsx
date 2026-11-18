@@ -107,8 +107,8 @@ export default function AppRoutes() {
         <Route path="tasks/:id"      element={<TaskDetailPage />} />
 
         {/* Administration */}
-        <Route path="users"          element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><UserManagementPage /></ProtectedRoute>} />
-        <Route path="audit"          element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><AuditLogPage /></ProtectedRoute>} />
+        <Route path="users"          element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.IT_ADMIN]}><UserManagementPage /></ProtectedRoute>} />
+        <Route path="audit"          element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.IT_ADMIN]}><AuditLogPage /></ProtectedRoute>} />
       </Route>
     </Routes>
   );

@@ -143,12 +143,12 @@ export default function UserManagementPage() {
       <div className="page-header">
         <div className="page-header-left">
           <h1>User Management</h1>
-          <p>Dynamic Role-Based Access Control — Super Admin only</p>
+          <p>Dynamic Role-Based Access Control — IT Admin & Super Admin Provisioning</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', background:'rgba(244,63,94,0.08)', borderRadius:'var(--radius-md)', border:'1px solid rgba(244,63,94,0.2)' }}>
-            <Shield size={15} color="var(--danger-500)" />
-            <span style={{ fontSize:'0.8rem', fontWeight:600, color:'var(--danger-700)' }}>Super Admin Exclusive</span>
+          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', background:'rgba(8,145,178,0.08)', borderRadius:'var(--radius-md)', border:'1px solid rgba(8,145,178,0.2)' }}>
+            <Shield size={15} color="var(--teal-500)" />
+            <span style={{ fontSize:'0.8rem', fontWeight:600, color:'var(--teal-700)' }}>Administrator Control</span>
           </div>
           <button className="btn btn-primary" onClick={openCreateModal} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <UserPlus size={16} /> Add New User

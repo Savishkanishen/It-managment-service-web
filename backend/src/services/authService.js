@@ -88,6 +88,14 @@ class AuthService {
    * Register a new user
    */
   async register({ name, username, email, password, role, division }) {
+    // ── Enforce authorization: Admin accounts cannot be self-registered publicly ──
+    const normalizedRequestedRole = normalizeRole(role || 'trainee');
+    if (normalizedRequestedRole === 'super_admin' || normalizedRequestedRole === 'it_admin') {
+      const error = new Error('Admin accounts cannot be self-registered. An IT Administrator must create this account via the IT Admin Dashboard.');
+      error.statusCode = 403;
+      throw error;
+    }
+
     if (!name || !name.trim()) {
       const error = new Error('Full name is required');
       error.statusCode = 400;
