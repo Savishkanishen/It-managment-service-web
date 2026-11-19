@@ -157,14 +157,32 @@ export default function ZoomRequestPage() {
             <div className="card-header"><span className="card-title">Required Equipment & AV Support</span></div>
             <div className="card-body">
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                {EQUIPMENT_OPTIONS.map(eq => (
-                  <button key={eq} type="button" onClick={() => toggleEquip(eq)} style={{ padding:'8px 16px', borderRadius:'var(--radius-full)', fontSize:'0.82rem', fontWeight:500, cursor:'pointer', background:form.requiredEquipment.includes(eq)?'#522B5B':'var(--oc-45)', color:form.requiredEquipment.includes(eq)?'#FBE4D8':'#190019', border:`1.5px solid ${form.requiredEquipment.includes(eq)?'#522B5B':'#DFB6B2'}`, transition:'all var(--transition-fast)' }}>
-                    {eq}
-                  </button>
-                ))}
+                {EQUIPMENT_OPTIONS.map(eq => {
+                  const isSelected = form.requiredEquipment.includes(eq);
+                  return (
+                    <button
+                      key={eq}
+                      type="button"
+                      onClick={() => toggleEquip(eq)}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 'var(--radius-full)',
+                        fontSize: '0.82rem',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        background: isSelected ? 'var(--slate-700)' : 'var(--surface-white)',
+                        color: isSelected ? '#FFFFFF' : 'var(--slate-950)',
+                        border: `1.5px solid ${isSelected ? 'var(--slate-700)' : 'var(--slate-300)'}`,
+                        transition: 'all var(--transition-fast)'
+                      }}
+                    >
+                      {eq}
+                    </button>
+                  );
+                })}
               </div>
               {form.requiredEquipment.length > 0 && (
-                <div style={{ marginTop: 12, fontSize: '0.8rem', color: '#522B5B', fontWeight: 600 }}>Selected: {form.requiredEquipment.join(', ')}</div>
+                <div style={{ marginTop: 12, fontSize: '0.8rem', color: 'var(--slate-700)', fontWeight: 600 }}>Selected: {form.requiredEquipment.join(', ')}</div>
               )}
             </div>
           </div>

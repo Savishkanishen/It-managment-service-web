@@ -22,7 +22,7 @@ const ROLE_OPTIONS = [
   { value: ROLES.ZOOM_REQUESTER, label: 'Zoom Requester' },
 ];
 
-const AVATAR_COLORS = ['#190019', '#2B124C', '#522B5B', '#854F6C', '#6E3C56', '#431C3D'];
+const AVATAR_COLORS = ['#06141B', '#11212D', '#253745', '#4A5C6A', '#385061', '#1B3547'];
 const getAvatarColor = (id = '') => {
   const str = String(id);
   const code = str.length > 0 ? str.charCodeAt(str.length - 1) : 0;
@@ -331,7 +331,7 @@ export default function ITAdminDashboard() {
                           toggleUserActive(u.id);
                           addToast('info', 'Status Toggled', `User @${u.username} is now ${u.active ? 'Inactive' : 'Active'}.`);
                         }}
-                        style={{ fontSize: '0.72rem', padding: '4px 8px', color: u.active ? '#854F6C' : 'var(--success-700)' }}
+                        style={{ fontSize: '0.72rem', padding: '4px 8px', color: u.active ? 'var(--slate-500)' : 'var(--success-700)' }}
                         title="Toggle Active/Inactive"
                       >
                         {u.active ? 'Deactivate' : 'Activate'}
@@ -342,7 +342,7 @@ export default function ITAdminDashboard() {
                         style={{ fontSize: '0.74rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                         title="Reset User Password"
                       >
-                        <Key size={13} color="#522B5B" /> Reset Password
+                        <Key size={13} color="var(--slate-700)" /> Reset Password
                       </button>
                     </div>
                   </td>
@@ -508,9 +508,9 @@ export default function ITAdminDashboard() {
                   </div>
                   <Badge status={z.meetingLevel === 'Critical' ? 'High' : 'Medium'}>{z.meetingLevel}</Badge>
                 </div>
-                <div className="zoom-detail-row"><Clock size={13} color="#854F6C" />{new Date(z.scheduledDate).toLocaleString()}</div>
-                <div className="zoom-detail-row"><Building size={13} color="#854F6C" />{z.location}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTop: '1px solid #DFB6B2' }}>
+                <div className="zoom-detail-row"><Clock size={13} color="var(--slate-500)" />{new Date(z.scheduledDate).toLocaleString()}</div>
+                <div className="zoom-detail-row"><Building size={13} color="var(--slate-500)" />{z.location}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border-color)' }}>
                   <Badge status={z.status} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     {z.meetingLink ? (
@@ -520,7 +520,7 @@ export default function ITAdminDashboard() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn btn-secondary btn-sm"
-                          style={{ fontSize: '0.72rem', padding: '3px 8px', color: '#522B5B', fontWeight: 700 }}
+                          style={{ fontSize: '0.72rem', padding: '3px 8px', color: 'var(--slate-700)', fontWeight: 700 }}
                         >
                           Join Link
                         </a>
@@ -538,7 +538,7 @@ export default function ITAdminDashboard() {
                         onClick={() => { setZoomLinkModal(z); setQuickMeetingLink(''); }}
                         style={{ fontSize: '0.72rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
                       >
-                        <Sparkles size={12} /> Provision Link
+                        <LinkIcon size={12} /> Provision Link
                       </button>
                     )}
                   </div>
@@ -771,9 +771,9 @@ export default function ITAdminDashboard() {
                   type="button"
                   onClick={generateStrongPassword}
                   className="btn btn-ghost btn-sm"
-                  style={{ fontSize: '0.72rem', color: 'var(--sherwood-tan-dark)', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                  style={{ fontSize: '0.72rem', color: 'var(--slate-700)', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 4 }}
                 >
-                  <Sparkles size={12} /> Auto-Generate
+                  <Key size={12} /> Generate Password
                 </button>
               </div>
               <div style={{ position: 'relative' }}>
@@ -890,9 +890,9 @@ export default function ITAdminDashboard() {
       >
         {zoomLinkModal && (
           <div>
-            <div style={{ padding: '12px 14px', background: 'var(--oc-45)', borderRadius: 'var(--radius-md)', marginBottom: 16, border: '1px solid #DFB6B2' }}>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#190019' }}>{zoomLinkModal.meetingName}</div>
-              <div style={{ fontSize: '0.78rem', color: '#854F6C', marginTop: 2 }}>
+            <div style={{ padding: '12px 14px', background: 'var(--oc-45)', borderRadius: 'var(--radius-md)', marginBottom: 16, border: '1px solid var(--border-color)' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--slate-950)' }}>{zoomLinkModal.meetingName}</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--slate-500)', marginTop: 2 }}>
                 {new Date(zoomLinkModal.scheduledDate).toLocaleString()} • {zoomLinkModal.location}
               </div>
             </div>
@@ -906,11 +906,11 @@ export default function ITAdminDashboard() {
                     const meetingId = Math.floor(1000000000 + Math.random() * 9000000000);
                     const pwd = Math.random().toString(36).slice(2, 10);
                     setQuickMeetingLink(`https://zoom.us/j/${meetingId}?pwd=${pwd}`);
-                    addToast('info', 'Link Generated', 'Official Zoom meeting URL auto-generated.');
+                    addToast('info', 'Link Generated', 'Official Zoom meeting URL generated.');
                   }}
-                  style={{ fontSize: '0.72rem', color: '#522B5B', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                  style={{ fontSize: '0.72rem', color: 'var(--slate-700)', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 4 }}
                 >
-                  <Sparkles size={12} /> ⚡ Auto-Generate URL
+                  <LinkIcon size={12} /> Generate Link
                 </button>
               </div>
               <input

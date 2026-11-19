@@ -15,7 +15,7 @@ const ROLE_OPTIONS = [
   { value: ROLES.ZOOM_REQUESTER, label: 'Zoom Requester (External)' },
 ];
 
-const AVATAR_COLORS = ['#190019', '#2B124C', '#522B5B', '#854F6C', '#6E3C56', '#431C3D'];
+const AVATAR_COLORS = ['#06141B', '#11212D', '#253745', '#4A5C6A', '#385061', '#1B3547'];
 const getAvatarColor = (id = '') => {
   const str = String(id);
   const code = str.length > 0 ? str.charCodeAt(str.length - 1) : 0;

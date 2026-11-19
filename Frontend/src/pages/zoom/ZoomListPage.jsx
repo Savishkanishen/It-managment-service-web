@@ -80,7 +80,7 @@ export default function ZoomListPage() {
         {['All', 'Pending', 'Confirmed', 'Completed'].map(s => (
           <div key={s} className={`tab-item ${filter === s ? 'active' : ''}`} onClick={() => setFilter(s)}>
             {s}
-            <span style={{ fontSize: '0.72rem', background: 'rgba(223, 182, 178, 0.35)', color: '#190019', padding: '1px 6px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>
+            <span style={{ fontSize: '0.72rem', background: 'rgba(155, 168, 171, 0.25)', color: 'var(--slate-950)', padding: '1px 6px', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>
               {s === 'All' ? zoomRequests.length : zoomRequests.filter(z => z.status === s).length}
             </span>
           </div>
@@ -89,8 +89,8 @@ export default function ZoomListPage() {
 
       {filtered.length === 0 ? (
         <div className="card" style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--gray-500)' }}>
-          <Video size={40} style={{ margin: '0 auto 12px', opacity: 0.3, color: '#522B5B' }} />
-          <div style={{ fontSize: '1rem', fontWeight: 600, color: '#190019' }}>No {filter !== 'All' ? filter : ''} Zoom meetings found</div>
+          <Video size={40} style={{ margin: '0 auto 12px', opacity: 0.3, color: 'var(--slate-700)' }} />
+          <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--slate-950)' }}>No {filter !== 'All' ? filter : ''} Zoom meetings found</div>
           <div style={{ fontSize: '0.82rem', marginTop: 4 }}>Click "Schedule Zoom Meeting" to create a new session.</div>
           <div style={{ marginTop: 16 }}>
             <Link to="/zoom/new" className="btn btn-primary btn-sm">
@@ -114,34 +114,34 @@ export default function ZoomListPage() {
                 </div>
 
                 <div className="zoom-detail-row">
-                  <Clock size={13} color="#854F6C" />
+                  <Clock size={13} color="var(--slate-500)" />
                   <span>{new Date(z.scheduledDate).toLocaleString()}</span>
                 </div>
                 <div className="zoom-detail-row">
-                  <MapPin size={13} color="#854F6C" />
+                  <MapPin size={13} color="var(--slate-500)" />
                   <span>{z.location}</span>
                 </div>
                 <div className="zoom-detail-row">
-                  <User size={13} color="#854F6C" />
+                  <User size={13} color="var(--slate-500)" />
                   <span style={{ fontSize: '0.78rem' }}>
                     Requested by: <strong>{requester ? requester.name : 'Staff'}</strong> {requester?.division ? `(${requester.division})` : ''}
                   </span>
                 </div>
 
                 {z.meetingLink ? (
-                  <div className="zoom-detail-row" style={{ color: '#522B5B', marginTop: 6, background: 'rgba(223, 182, 178, 0.2)', padding: '6px 10px', borderRadius: 'var(--radius-md)', border: '1px solid #DFB6B2' }}>
-                    <LinkIcon size={14} color="#522B5B" />
+                  <div className="zoom-detail-row" style={{ color: 'var(--slate-700)', marginTop: 6, background: 'rgba(155, 168, 171, 0.15)', padding: '6px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                    <LinkIcon size={14} color="var(--slate-700)" />
                     <a
                       href={z.meetingLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{ color: '#522B5B', fontWeight: 700, textDecoration: 'underline', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      style={{ color: 'var(--slate-700)', fontWeight: 700, textDecoration: 'underline', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                     >
                       Join Official Zoom Link →
                     </a>
                   </div>
                 ) : (
-                  <div className="zoom-detail-row" style={{ color: '#854F6C', marginTop: 4, fontSize: '0.78rem' }}>
+                  <div className="zoom-detail-row" style={{ color: 'var(--slate-500)', marginTop: 4, fontSize: '0.78rem' }}>
                     <Clock size={13} />
                     <em>Official Zoom link not yet uploaded</em>
                   </div>
@@ -151,11 +151,11 @@ export default function ZoomListPage() {
                   {(z.requiredEquipment || []).map(e => <span key={e} className="zoom-equipment-tag">{e}</span>)}
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 12, borderTop: '1px solid #DFB6B2', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border-color)', flexWrap: 'wrap', gap: 8 }}>
                   <div>
                     <Badge status={z.status} />
                     {assignedUser && (
-                      <div style={{ fontSize: '0.75rem', color: '#854F6C', marginTop: 4, fontWeight: 500 }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--slate-500)', marginTop: 4, fontWeight: 500 }}>
                         Tech: {assignedUser.name}
                       </div>
                     )}
@@ -191,7 +191,7 @@ export default function ZoomListPage() {
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => handleStatusChange(z, 'Confirmed')}
-                          style={{ fontSize: '0.72rem', color: '#854F6C' }}
+                          style={{ fontSize: '0.72rem', color: 'var(--slate-500)' }}
                           title="Reopen meeting"
                         >
                           Reopen
@@ -231,12 +231,12 @@ export default function ZoomListPage() {
       >
         {linkModal && (
           <div>
-            <div style={{ padding: '12px 14px', background: 'var(--oc-45)', borderRadius: 'var(--radius-md)', marginBottom: 16, border: '1px solid #DFB6B2' }}>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#190019' }}>{linkModal.meetingName}</div>
-              <div style={{ fontSize: '0.78rem', color: '#6B4962', marginTop: 3 }}>
+            <div style={{ padding: '12px 14px', background: 'var(--oc-45)', borderRadius: 'var(--radius-md)', marginBottom: 16, border: '1px solid var(--border-color)' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--slate-950)' }}>{linkModal.meetingName}</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--gray-600)', marginTop: 3 }}>
                 Requested by: <strong>{getUser(linkModal.requestedBy)?.name || 'Staff'}</strong> ({getUser(linkModal.requestedBy)?.division || 'Ministry'})
               </div>
-              <div style={{ fontSize: '0.78rem', color: '#854F6C', marginTop: 2 }}>
+              <div style={{ fontSize: '0.78rem', color: 'var(--slate-500)', marginTop: 2 }}>
                 Scheduled: {new Date(linkModal.scheduledDate).toLocaleString()} • {linkModal.location}
               </div>
             </div>
@@ -247,9 +247,9 @@ export default function ZoomListPage() {
                   type="button"
                   className="btn btn-ghost btn-sm"
                   onClick={generateModalLink}
-                  style={{ fontSize: '0.72rem', color: '#522B5B', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                  style={{ fontSize: '0.72rem', color: 'var(--slate-700)', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 4 }}
                 >
-                  <Sparkles size={12} /> ⚡ Auto-Generate URL
+                  <LinkIcon size={12} /> Generate Link
                 </button>
               </div>
               <input
@@ -261,7 +261,7 @@ export default function ZoomListPage() {
                 style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }}
               />
               <div className="form-hint" style={{ fontSize: '0.72rem', color: 'var(--gray-500)', marginTop: 4 }}>
-                Enter or auto-generate the official meeting URL. It will be sent to the requester immediately.
+                Enter or generate the official meeting URL. It will be sent to the requester immediately.
               </div>
             </div>
           </div>
@@ -277,9 +277,9 @@ export default function ZoomListPage() {
       >
         {assignModal && (
           <div>
-            <div style={{ padding: '12px 14px', background: 'var(--oc-45)', borderRadius: 'var(--radius-md)', marginBottom: 16, border: '1px solid #DFB6B2' }}>
-              <div style={{ fontWeight: 700, color: '#190019' }}>{assignModal.meetingName}</div>
-              <div style={{ fontSize: '0.78rem', color: '#854F6C' }}>{new Date(assignModal.scheduledDate).toLocaleString()}</div>
+            <div style={{ padding: '12px 14px', background: 'var(--oc-45)', borderRadius: 'var(--radius-md)', marginBottom: 16, border: '1px solid var(--border-color)' }}>
+              <div style={{ fontWeight: 700, color: 'var(--slate-950)' }}>{assignModal.meetingName}</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--slate-500)' }}>{new Date(assignModal.scheduledDate).toLocaleString()}</div>
             </div>
             <div className="form-group">
               <label className="form-label">Assign Technician</label>

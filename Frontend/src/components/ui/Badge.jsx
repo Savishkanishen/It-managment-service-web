@@ -24,8 +24,8 @@ export function CategoryBadge({ category }) {
 export function RoleBadge({ role }) {
   const map = {
     super_admin: { cls: 'badge-dark', label: 'Super Admin' },
-    it_admin: { cls: 'badge-purple', label: 'IT Admin' },
-    it_officer: { cls: 'badge-rose', label: 'IT Officer' },
+    it_admin: { cls: 'badge-navy', label: 'IT Admin' },
+    it_officer: { cls: 'badge-slate', label: 'IT Officer' },
     trainee: { cls: 'badge-green', label: 'Trainee' },
     zoom_requester: { cls: 'badge-teal', label: 'Zoom Requester' },
   };
