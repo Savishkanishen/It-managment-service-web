@@ -408,6 +408,88 @@ export function DataProvider({ children }) {
     apiCall(`/users/${userId}/active`, 'PATCH', {});
   };
 
+  const resetUserPassword = async (userId, newPassword, adminUser) => {
+    try {
+      const res = await fetch(`${API_BASE}/users/${userId}/password`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': adminUser?.id || '',
+        },
+        body: JSON.stringify({ password: newPassword, adminUserId: adminUser?.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to reset password');
+      addAuditLog(
+        adminUser?.id,
+        adminUser?.username || adminUser?.name,
+        'SECURITY',
+        'User',
+        userId,
+        `Reset password for user ${userId}`,
+        'Security'
+      );
+      return data;
+    } catch (err) {
+      console.error('resetUserPassword error:', err);
+      throw err;
+    }
+  };
+
+  // --- SYSTEM BROADCASTS ---
+  const [broadcasts, setBroadcasts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('itsm_broadcasts');
+      return saved ? JSON.parse(saved) : [
+        {
+          id: 'bc-1',
+          title: 'Scheduled Ministry Core Network Maintenance',
+          message: 'Server infrastructure maintenance scheduled tonight from 22:00 to 23:00. Brief service intermittency may occur.',
+          priority: 'Warning',
+          audience: 'All',
+          createdAt: new Date().toISOString(),
+          active: true,
+          author: 'IT Administrator',
+        }
+      ];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const addBroadcast = (broadcastData, user) => {
+    const newBc = {
+      id: `bc-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      active: true,
+      author: user?.name || 'IT Administrator',
+      ...broadcastData,
+    };
+    setBroadcasts(prev => {
+      const updated = [newBc, ...prev];
+      try { localStorage.setItem('itsm_broadcasts', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+    addAuditLog(user?.id, user?.username || user?.name, 'BROADCAST', 'Announcement', newBc.id, `Broadcasted system announcement: "${newBc.title}"`, 'System Operations');
+    return newBc;
+  };
+
+  const toggleBroadcast = (id) => {
+    setBroadcasts(prev => {
+      const updated = prev.map(b => b.id === id ? { ...b, active: !b.active } : b);
+      try { localStorage.setItem('itsm_broadcasts', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+  };
+
+  const removeBroadcast = (id) => {
+    setBroadcasts(prev => {
+      const updated = prev.filter(b => b.id !== id);
+      try { localStorage.setItem('itsm_broadcasts', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+  };
+
   // --- REPAIRS ---
   const createRepair = async (data, user) => {
     const newRepair = {
@@ -488,7 +570,8 @@ export function DataProvider({ children }) {
       updateTicketStatus, assignTicket, submitReassignmentRequest, rejectReassignmentRequest, createTicket,
       updateTaskStatus, updateSubtaskStatus, createTask,
       createZoomRequest, assignZoomRequest, updateZoomMeetingLink,
-      createUser, updateUserRole, toggleUserActive,
+      createUser, updateUserRole, toggleUserActive, resetUserPassword,
+      broadcasts, addBroadcast, toggleBroadcast, removeBroadcast,
       createRepair, closeRepair,
       createPublication, approvePublication,
       addAuditLog,

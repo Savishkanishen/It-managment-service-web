@@ -9,11 +9,11 @@ import ProgressBar from '../../components/ui/ProgressBar';
 import Modal from '../../components/ui/Modal';
 import HoldReasonModal from '../../components/ui/HoldReasonModal';
 import { useNotifications } from '../../context/NotificationContext';
-import { Ticket, CheckSquare, Package, RotateCcw, ChevronRight, AlertCircle, ArrowRight } from 'lucide-react';
+import { Ticket, CheckSquare, Package, RotateCcw, ChevronRight, AlertCircle, ArrowRight, Radio } from 'lucide-react';
 
 export default function TraineeDashboard() {
   const { currentUser } = useAuth();
-  const { tickets, tasks, stock, submitReassignmentRequest, updateSubtaskStatus, updateTaskStatus } = useData();
+  const { tickets, tasks, stock, submitReassignmentRequest, updateSubtaskStatus, updateTaskStatus, broadcasts } = useData();
   const { addToast } = useNotifications();
   const [reassignModal, setReassignModal] = useState(null);
   const [reassignReason, setReassignReason] = useState('');
@@ -51,24 +51,35 @@ export default function TraineeDashboard() {
     setReassignReason('');
   };
 
-  const today = new Date();
-  const greeting = today.getHours() < 12 ? 'Good morning' : today.getHours() < 17 ? 'Good afternoon' : 'Good evening';
+  const activeBroadcasts = (broadcasts || []).filter(b => b.active);
 
   return (
     <div>
-      <div className="dashboard-welcome">
-        <div className="dashboard-welcome-left">
-          <h2>{greeting}, {currentUser?.name ? currentUser.name.split(' ')[0] : 'Trainee'} 👋</h2>
-          <p>Here are your active assignments and tasks</p>
+      {/* Active System Broadcast Announcement (if published by IT Admin) */}
+      {activeBroadcasts.map(b => (
+        <div
+          key={b.id}
+          className={`alert-card alert-card-${b.priority === 'Critical' ? 'error' : b.priority === 'Warning' ? 'warning' : 'info'}`}
+          style={{ marginBottom: 18 }}
+        >
+          <Radio size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: '0.86rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {b.title}
+              <span style={{ fontSize: '0.68rem', padding: '1px 8px', borderRadius: 9999, background: 'rgba(0,0,0,0.06)', fontWeight: 700 }}>
+                {b.priority}
+              </span>
+            </div>
+            <div style={{ fontSize: '0.78rem', marginTop: 3, opacity: 0.9 }}>{b.message}</div>
+          </div>
         </div>
-        <div className="dashboard-welcome-badge">IT Trainee / Intern</div>
-      </div>
+      ))}
 
       <div className="stats-grid">
-        <StatCard label="My Active Tickets" value={myTickets.length} icon={Ticket} iconBg="rgba(6,182,212,0.1)" iconColor="var(--teal-500)" accentColor="var(--teal-500)" />
-        <StatCard label="My Tasks" value={myTasks.length} icon={CheckSquare} iconBg="rgba(139,92,246,0.1)" iconColor="var(--purple-500)" accentColor="var(--purple-500)" />
-        <StatCard label="Resolved This Period" value={resolvedCount} icon={CheckSquare} iconBg="rgba(16,185,129,0.1)" iconColor="var(--success-500)" accentColor="var(--success-500)" />
-        <StatCard label="Stock Check" value={stock.filter(s=>s.status==='Available').length} icon={Package} iconBg="rgba(59,130,246,0.1)" iconColor="#3b82f6" accentColor="#3b82f6" sub="items available" />
+        <StatCard label="My Active Tickets" value={myTickets.length} icon={Ticket} iconBg="var(--sherwood-tan-wash)" iconColor="var(--sherwood-tan-dark)" accentColor="var(--sherwood-tan)" />
+        <StatCard label="My Tasks" value={myTasks.length} icon={CheckSquare} iconBg="var(--sherwood-tan-wash)" iconColor="var(--af-655)" accentColor="var(--sherwood-tan)" />
+        <StatCard label="Resolved This Period" value={resolvedCount} icon={CheckSquare} iconBg="var(--success-100)" iconColor="var(--success-500)" accentColor="var(--success-500)" />
+        <StatCard label="Stock Check" value={stock.filter(s=>s.status==='Available').length} icon={Package} iconBg="var(--sherwood-tan-wash)" iconColor="var(--sherwood-tan-dark)" accentColor="var(--sherwood-tan)" sub="items available" />
       </div>
 
       <div className="card-grid">

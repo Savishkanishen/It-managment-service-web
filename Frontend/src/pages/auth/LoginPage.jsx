@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { ROUTES } from '../../constants/routes';
 import AlertBanner from '../../components/common/AlertBanner';
-import { Shield, Eye, EyeOff, Lock, User, ArrowRight, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, Lock, User, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -35,31 +35,28 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      {/* Background ambient orbs */}
-      <div className="login-bg-orbs">
-        <div className="login-bg-orb" />
-        <div className="login-bg-orb" />
-        <div className="login-bg-orb" />
-      </div>
-
       <div className="login-container">
-        {/* Branding Header */}
+        {/* Government Branding Header */}
         <div className="login-brand-header">
-          <div className="login-brand-icon">
-            <Shield size={28} color="white" />
+          <div className="login-emblem-wrap">
+            <img
+              src="/sri-lanka-emblem.svg"
+              alt="State Emblem of Sri Lanka"
+              className="login-emblem-img"
+            />
           </div>
           <div>
             <div className="login-brand-name">
               IT Service Management Platform
-              <span>Ministry of Higher Education</span>
+              <span>Government of Sri Lanka • Ministry of Higher Education</span>
             </div>
           </div>
         </div>
 
         {/* Login Card */}
         <div className="login-card">
-          <h2 className="login-card-title">Welcome back</h2>
-          <p className="login-card-subtitle">Sign in to your account to continue</p>
+          <h2 className="login-card-title">Official Portal Sign In</h2>
+          <p className="login-card-subtitle">Enter your authorized credentials to access the ITSM platform</p>
 
           <AlertBanner type="error" message={error} />
 
@@ -130,31 +127,12 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div style={{ textAlign: 'center', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--gray-100)' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>
-              Don't have an account?{' '}
-            </span>
-            <Link
-              to={ROUTES.SIGNUP}
-              style={{
-                fontSize: '0.85rem',
-                color: 'var(--teal-600)',
-                fontWeight: 600,
-                textDecoration: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
-              onMouseEnter={(e) => (e.target.style.textDecoration = 'underline')}
-              onMouseLeave={(e) => (e.target.style.textDecoration = 'none')}
-            >
-              <UserPlus size={14} />
-              Create an account
-            </Link>
+          <div className="login-footer-notice">
+            Authorized government personnel only. Account credentials and role access are provisioned by the IT Department.
           </div>
 
-          <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--gray-400)', marginTop: '24px' }}>
-            Ministry of Higher Education — IT Department
+          <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--af-655-muted)', marginTop: '20px', marginBottom: 0 }}>
+            Democratic Socialist Republic of Sri Lanka
           </p>
         </div>
       </div>

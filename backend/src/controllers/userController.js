@@ -49,6 +49,16 @@ class UserController {
       next(err);
     }
   }
+
+  async resetPassword(req, res, next) {
+    try {
+      const adminUserId = req.headers['x-user-id'] || req.body.adminUserId;
+      const result = await userService.resetPassword(req.params.id, req.body.password, adminUserId);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = new UserController();

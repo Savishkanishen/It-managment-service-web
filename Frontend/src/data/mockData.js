@@ -10,6 +10,7 @@ export const ROLES = {
 };
 
 export const USERS = [
+  { id: 'U000', name: 'System Administrator', username: 'admin', role: ROLES.IT_ADMIN, email: 'admin@mohe.gov.mv', division: 'IT Department', active: true, avatar: 'AD' },
   { id: 'U001', name: 'SuperAdmin', username: 'SuperAdmin', role: ROLES.SUPER_ADMIN, email: 'superadmin@mohe.gov.mv', division: 'IT Department', active: true, avatar: 'SA' },
   { id: 'U002', name: 'ITAdmin', username: 'ITAdmin', role: ROLES.IT_ADMIN, email: 'itadmin@mohe.gov.mv', division: 'IT Department', active: true, avatar: 'IA' },
   { id: 'U003', name: 'Sachin', username: 'Sachin', role: ROLES.TRAINEE, email: 'sachin@mohe.gov.mv', division: 'IT Department', active: true, avatar: 'SA' },

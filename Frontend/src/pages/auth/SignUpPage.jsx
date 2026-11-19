@@ -460,7 +460,7 @@ export default function SignUpPage() {
               to={ROUTES.LOGIN}
               style={{
                 fontSize: '0.85rem',
-                color: 'var(--teal-600)',
+                color: 'var(--af-655)',
                 fontWeight: 600,
                 textDecoration: 'none',
               }}

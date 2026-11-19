@@ -10,7 +10,8 @@ import Modal from '../../components/ui/Modal';
 import ProgressBar from '../../components/ui/ProgressBar';
 import {
   Ticket, Package, Wrench, Video, Globe, AlertCircle, Clock, Plus,
-  CheckSquare, ArrowRight, UserPlus, Users, Shield, Mail, Lock, User, Building
+  CheckSquare, ArrowRight, UserPlus, Users, Shield, Mail, Lock, User, Building,
+  Key, Radio, Sparkles, Copy, Check, Trash2
 } from 'lucide-react';
 
 const ROLE_OPTIONS = [
@@ -20,7 +21,7 @@ const ROLE_OPTIONS = [
   { value: ROLES.ZOOM_REQUESTER, label: 'Zoom Requester' },
 ];
 
-const AVATAR_COLORS = ['#0891b2','#7c3aed','#059669','#dc2626','#d97706','#0284c7'];
+const AVATAR_COLORS = ['#36312E', '#C2A78A', '#7A6B5C', '#546355', '#91533B', '#485C69'];
 const getAvatarColor = (id = '') => {
   const str = String(id);
   const code = str.length > 0 ? str.charCodeAt(str.length - 1) : 0;
@@ -29,7 +30,10 @@ const getAvatarColor = (id = '') => {
 
 export default function ITAdminDashboard() {
   const { currentUser } = useAuth();
-  const { tickets, stock, repairs, zoomRequests, users, divisions, createUser } = useData();
+  const {
+    tickets, stock, repairs, zoomRequests, users, divisions,
+    createUser, resetUserPassword, broadcasts, addBroadcast, toggleBroadcast, removeBroadcast
+  } = useData();
   const { addToast } = useNotifications();
 
   // Create User Modal State
@@ -45,6 +49,23 @@ export default function ITAdminDashboard() {
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Password Reset Modal State (Admin Feature)
+  const [resetModalUser, setResetModalUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  // System Broadcast Modal State (Admin Feature)
+  const [broadcastModal, setBroadcastModal] = useState(false);
+  const [broadcastForm, setBroadcastForm] = useState({
+    title: '',
+    message: '',
+    priority: 'Warning',
+    audience: 'All',
+  });
+
   const divisionList = divisions && divisions.length > 0 ? divisions : DIVISIONS;
 
   const stats = getTicketStats(tickets);
@@ -52,9 +73,6 @@ export default function ITAdminDashboard() {
   const overdueRepairs = repairs.filter(r => r.status === 'Overdue');
   const lowStock = stock.filter(s => ['Low Stock', 'Not Available'].includes(s.status));
   const upcomingZoom = zoomRequests.filter(z => ['Pending', 'Confirmed'].includes(z.status));
-
-  const today = new Date();
-  const greeting = today.getHours() < 12 ? 'Good morning' : today.getHours() < 17 ? 'Good afternoon' : 'Good evening';
 
   const openCreateModal = () => {
     setFormError('');
@@ -125,36 +143,87 @@ export default function ITAdminDashboard() {
     }
   };
 
+  const openResetModal = (targetUser) => {
+    setResetModalUser(targetUser);
+    setNewPassword('GovPass#' + Math.floor(1000 + Math.random() * 9000));
+    setResetError('');
+    setResetSuccess('');
+    setCopied(false);
+  };
+
+  const generateStrongPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+    let res = 'Gov#';
+    for (let i = 0; i < 6; i++) {
+      res += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewPassword(res);
+    setCopied(false);
+  };
+
+  const handleResetPassword = async (e) => {
+    if (e) e.preventDefault();
+    if (!resetModalUser) return;
+    if (!newPassword || newPassword.length < 6) {
+      setResetError('Password must be at least 6 characters long');
+      return;
+    }
+    setResetSubmitting(true);
+    setResetError('');
+    try {
+      await resetUserPassword(resetModalUser.id, newPassword, currentUser);
+      setResetSuccess(`Credentials successfully updated for @${resetModalUser.username}`);
+      addToast('success', 'Password Reset', `Password updated for ${resetModalUser.name}`);
+      setResetSubmitting(false);
+    } catch (err) {
+      setResetError(err.message || 'Failed to reset password');
+      setResetSubmitting(false);
+    }
+  };
+
+  const handleBroadcastSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (!broadcastForm.title.trim() || !broadcastForm.message.trim()) {
+      return;
+    }
+    addBroadcast(broadcastForm, currentUser);
+    addToast('success', 'Announcement Published', `System broadcast "${broadcastForm.title}" is now live.`);
+    setBroadcastModal(false);
+    setBroadcastForm({ title: '', message: '', priority: 'Warning', audience: 'All' });
+  };
+
   return (
     <div>
-      <div className="dashboard-welcome">
-        <div className="dashboard-welcome-left">
-          <h2>{greeting}, {currentUser?.name ? currentUser.name.split(' ')[0] : 'Admin'} 👋</h2>
-          <p>IT Admin Control Center — Account Provisioning & System Operations</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            className="btn btn-primary"
-            onClick={openCreateModal}
-            style={{ fontSize: '0.82rem', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <UserPlus size={15} /> Create Account
-          </button>
-          <Link
-            to="/users"
-            className="btn btn-secondary"
-            style={{ fontSize: '0.82rem', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <Users size={15} /> User Directory
-          </Link>
-          <Link
-            to="/helpdesk/new"
-            className="btn btn-secondary"
-            style={{ fontSize: '0.82rem', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <Plus size={15} /> New Ticket
-          </Link>
-        </div>
+      {/* Quick Action Toolbar (replacing dark name banner) */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        <button
+          className="btn btn-primary"
+          onClick={openCreateModal}
+          style={{ fontSize: '0.82rem', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <UserPlus size={15} /> Create Account
+        </button>
+        <button
+          className="btn btn-secondary"
+          onClick={() => setBroadcastModal(true)}
+          style={{ fontSize: '0.82rem', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <Radio size={15} /> System Broadcast
+        </button>
+        <Link
+          to="/users"
+          className="btn btn-secondary"
+          style={{ fontSize: '0.82rem', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <Users size={15} /> User Directory
+        </Link>
+        <Link
+          to="/helpdesk/new"
+          className="btn btn-secondary"
+          style={{ fontSize: '0.82rem', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <Plus size={15} /> New Ticket
+        </Link>
       </div>
 
       {/* Reassignment Alert Banner */}
@@ -178,11 +247,11 @@ export default function ITAdminDashboard() {
 
       {/* Primary KPI Stats */}
       <div className="stats-grid">
-        <StatCard label="Total Accounts" value={users.length} icon={Users} iconBg="rgba(8,145,178,0.1)" iconColor="var(--teal-500)" accentColor="var(--teal-500)" sub={`${users.filter(u=>['super_admin','it_admin'].includes(u.role)).length} admin accounts`} />
-        <StatCard label="Open Tickets" value={stats.open} icon={Ticket} iconBg="rgba(6,182,212,0.1)" iconColor="var(--teal-500)" accentColor="var(--teal-500)" sub={`${stats.total} total`} />
-        <StatCard label="Stock Issues" value={lowStock.length} icon={Package} iconBg="rgba(244,63,94,0.1)" iconColor="var(--danger-500)" accentColor="var(--danger-500)" sub={`${stock.filter(s=>s.status==='Not Available').length} out of stock`} />
-        <StatCard label="Overdue Repairs" value={overdueRepairs.length} icon={Wrench} iconBg={overdueRepairs.length > 0 ? 'rgba(244,63,94,0.1)' : 'rgba(16,185,129,0.1)'} iconColor={overdueRepairs.length > 0 ? 'var(--danger-500)' : 'var(--success-500)'} accentColor={overdueRepairs.length > 0 ? 'var(--danger-500)' : 'var(--success-500)'} sub="External vendor" />
-        <StatCard label="Zoom Sessions" value={upcomingZoom.length} icon={Video} iconBg="rgba(139,92,246,0.1)" iconColor="var(--purple-500)" accentColor="var(--purple-500)" sub="Upcoming & pending" />
+        <StatCard label="Total Accounts" value={users.length} icon={Users} iconBg="var(--sherwood-tan-wash)" iconColor="var(--af-655)" accentColor="var(--sherwood-tan)" sub={`${users.filter(u=>['super_admin','it_admin'].includes(u.role)).length} admin accounts`} />
+        <StatCard label="Open Tickets" value={stats.open} icon={Ticket} iconBg="var(--sherwood-tan-wash)" iconColor="var(--sherwood-tan-dark)" accentColor="var(--sherwood-tan)" sub={`${stats.total} total`} />
+        <StatCard label="Stock Issues" value={lowStock.length} icon={Package} iconBg="var(--danger-100)" iconColor="var(--danger-500)" accentColor="var(--danger-500)" sub={`${stock.filter(s=>s.status==='Not Available').length} out of stock`} />
+        <StatCard label="Overdue Repairs" value={overdueRepairs.length} icon={Wrench} iconBg={overdueRepairs.length > 0 ? 'var(--danger-100)' : 'var(--success-100)'} iconColor={overdueRepairs.length > 0 ? 'var(--danger-500)' : 'var(--success-500)'} accentColor={overdueRepairs.length > 0 ? 'var(--danger-500)' : 'var(--success-500)'} sub="External vendor" />
+        <StatCard label="Zoom Sessions" value={upcomingZoom.length} icon={Video} iconBg="var(--sherwood-tan-wash)" iconColor="var(--af-655)" accentColor="var(--sherwood-tan)" sub="Upcoming & pending" />
       </div>
 
       {/* Account Provisioning & Quick User Directory Section */}
@@ -190,7 +259,7 @@ export default function ITAdminDashboard() {
         <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Shield size={18} color="var(--teal-600)" />
+              <Shield size={18} color="var(--sherwood-tan-dark)" />
               Account Provisioning & Management
             </span>
             <div style={{ fontSize: '0.78rem', color: 'var(--gray-500)', marginTop: 2 }}>
@@ -215,6 +284,7 @@ export default function ITAdminDashboard() {
                 <th>Division</th>
                 <th>Email</th>
                 <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Security Action</th>
               </tr>
             </thead>
             <tbody>
@@ -240,10 +310,99 @@ export default function ITAdminDashboard() {
                       {u.active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => openResetModal(u)}
+                      style={{ fontSize: '0.74rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                      title="Reset User Password"
+                    >
+                      <Key size={13} color="var(--sherwood-tan-dark)" /> Reset Password
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Operational System Broadcast Announcements (Admin Feature) */}
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Radio size={18} color="var(--sherwood-tan-dark)" />
+              Operational System Broadcasts & Advisories
+            </span>
+            <div style={{ fontSize: '0.78rem', color: 'var(--gray-500)', marginTop: 2 }}>
+              Publish live maintenance notices, network bulletins, and emergency alerts across all trainee and staff dashboards.
+            </div>
+          </div>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => setBroadcastModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <Plus size={14} /> New Broadcast Notice
+          </button>
+        </div>
+        <div className="card-body" style={{ padding: '16px 20px' }}>
+          {(!broadcasts || broadcasts.length === 0) ? (
+            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--gray-400)', fontSize: '0.84rem' }}>
+              No system broadcasts published. Click "New Broadcast Notice" to post an advisory.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {broadcasts.map(b => (
+                <div
+                  key={b.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    borderRadius: 'var(--radius-md)',
+                    background: b.active ? 'var(--oc-45)' : 'rgba(0,0,0,0.02)',
+                    border: '1px solid var(--oc-45-border)',
+                    opacity: b.active ? 1 : 0.6,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0, paddingRight: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span className={`badge ${b.priority === 'Critical' ? 'badge-red' : b.priority === 'Warning' ? 'badge-amber' : 'badge-blue'}`}>
+                        {b.priority}
+                      </span>
+                      <strong style={{ fontSize: '0.86rem', color: 'var(--af-655)' }}>{b.title}</strong>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--gray-500)' }}>
+                        Target: {b.audience} • {new Date(b.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--gray-600)', lineHeight: 1.4 }}>
+                      {b.message}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => toggleBroadcast(b.id)}
+                      style={{ fontSize: '0.74rem', padding: '4px 8px' }}
+                    >
+                      {b.active ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button
+                      className="icon-btn"
+                      onClick={() => removeBroadcast(b.id)}
+                      style={{ width: 28, height: 28, color: 'var(--danger-500)' }}
+                      title="Delete notice"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -482,6 +641,162 @@ export default function ITAdminDashboard() {
               </div>
             </div>
           )}
+        </form>
+      </Modal>
+
+      {/* Admin Password Reset Modal (Admin Feature) */}
+      <Modal
+        isOpen={!!resetModalUser}
+        onClose={() => { setResetModalUser(null); setResetSuccess(''); setResetError(''); }}
+        title={`Reset Credentials — @${resetModalUser?.username}`}
+        size="sm"
+        footer={
+          resetSuccess ? (
+            <button className="btn btn-primary" onClick={() => setResetModalUser(null)}>Done</button>
+          ) : (
+            <>
+              <button className="btn btn-secondary" onClick={() => setResetModalUser(null)} disabled={resetSubmitting}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleResetPassword} disabled={resetSubmitting}>
+                {resetSubmitting ? 'Updating...' : 'Update Password'}
+              </button>
+            </>
+          )
+        }
+      >
+        {resetSuccess ? (
+          <div>
+            <div className="alert-card alert-card-success" style={{ marginBottom: 16 }}>
+              <div className="alert-title">Password Successfully Reset</div>
+              <div className="alert-message">{resetSuccess}</div>
+            </div>
+            <div style={{ background: 'var(--oc-45)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--oc-45-border)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: 4 }}>Temporary Password:</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '1rem', fontWeight: 700, color: 'var(--af-655)' }}>
+                  {newPassword}
+                </code>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(newPassword);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.74rem' }}
+                >
+                  {copied ? <Check size={13} color="var(--success-500)" /> : <Copy size={13} />}
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleResetPassword}>
+            {resetError && (
+              <div className="alert-card alert-card-error" style={{ marginBottom: 14 }}>
+                <div className="alert-message">{resetError}</div>
+              </div>
+            )}
+            <p style={{ fontSize: '0.82rem', color: 'var(--gray-600)', marginBottom: 14, lineHeight: 1.45 }}>
+              Set a new secure password for <strong>{resetModalUser?.name}</strong> ({resetModalUser?.division}). The password will be hashed with modern bcrypt.
+            </p>
+            <div className="form-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label className="form-label" style={{ marginBottom: 0 }}>New Password <span className="required">*</span></label>
+                <button
+                  type="button"
+                  onClick={generateStrongPassword}
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: '0.72rem', color: 'var(--sherwood-tan-dark)', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <Sparkles size={12} /> Auto-Generate
+                </button>
+              </div>
+              <div style={{ position: 'relative' }}>
+                <Lock size={15} color="var(--gray-400)" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ paddingLeft: '36px', fontFamily: 'JetBrains Mono, monospace' }}
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="Min 6 characters"
+                  required
+                />
+              </div>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* System Announcement Broadcast Modal (Admin Feature) */}
+      <Modal
+        isOpen={broadcastModal}
+        onClose={() => setBroadcastModal(false)}
+        title="Publish System-Wide Advisory Announcement"
+        size="md"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setBroadcastModal(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleBroadcastSubmit} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Radio size={14} /> Publish Broadcast
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleBroadcastSubmit}>
+          <div className="form-group">
+            <label className="form-label">Announcement Title <span className="required">*</span></label>
+            <input
+              type="text"
+              className="form-input"
+              value={broadcastForm.title}
+              onChange={e => setBroadcastForm({ ...broadcastForm, title: e.target.value })}
+              placeholder="e.g. Scheduled Core Switch Maintenance Tonight"
+              required
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div className="form-group">
+              <label className="form-label">Priority / Urgency</label>
+              <select
+                className="form-select"
+                value={broadcastForm.priority}
+                onChange={e => setBroadcastForm({ ...broadcastForm, priority: e.target.value })}
+              >
+                <option value="Info">Info (Standard Advisory)</option>
+                <option value="Warning">Warning (Important Maintenance)</option>
+                <option value="Critical">Critical (Immediate Outage / Alert)</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Target Audience</label>
+              <select
+                className="form-select"
+                value={broadcastForm.audience}
+                onChange={e => setBroadcastForm({ ...broadcastForm, audience: e.target.value })}
+              >
+                <option value="All">All Personnel & Trainees</option>
+                <option value="Trainees">IT Trainees & Staff</option>
+                <option value="Zoom Requesters">Zoom Requesters</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Announcement Message <span className="required">*</span></label>
+            <textarea
+              className="form-input"
+              rows={3}
+              value={broadcastForm.message}
+              onChange={e => setBroadcastForm({ ...broadcastForm, message: e.target.value })}
+              placeholder="Provide clear operational notice details, expected downtime, and workarounds..."
+              required
+            />
+          </div>
         </form>
       </Modal>
     </div>

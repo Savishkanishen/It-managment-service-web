@@ -30,8 +30,19 @@ function NotificationIcon({ type }) {
   if (type === 'warning') return <AlertTriangle size={16} color="var(--warning-500)" />;
   if (type === 'success') return <CheckCircle size={16} color="var(--success-500)" />;
   if (type === 'error') return <X size={16} color="var(--danger-500)" />;
-  return <Info size={16} color="var(--teal-500)" />;
+  return <Info size={16} color="var(--sherwood-tan-dark)" />;
 }
+
+const getRoleDisplayName = (role) => {
+  if (!role) return '';
+  switch (role) {
+    case 'it_admin': return 'IT Admin';
+    case 'trainee': return 'Trainee';
+    case 'super_admin': return 'Super Admin';
+    case 'zoom_requester': return 'Zoom Requester';
+    default: return role.replace(/_/g, ' ');
+  }
+};
 
 export default function TopBar() {
   const { currentUser } = useAuth();
@@ -75,6 +86,14 @@ export default function TopBar() {
           <input type="text" placeholder="Search tickets, assets, tasks..." />
         </div>
 
+        {/* User Role (Trainee / Admin / Super Admin) */}
+        {currentUser?.role && (
+          <div className="topbar-role-badge">
+            <span className="topbar-role-dot" />
+            <span className="topbar-role-text">{getRoleDisplayName(currentUser.role)}</span>
+          </div>
+        )}
+
         {/* Notifications */}
         <div style={{ position: 'relative' }} ref={panelRef}>
           <button className="icon-btn" onClick={() => setShowNotifications(v => !v)}>
@@ -103,7 +122,7 @@ export default function TopBar() {
                     className={`notification-item ${!n.read ? 'unread' : ''}`}
                     onClick={() => markRead(n.id)}
                   >
-                    <div className={`notification-item-icon`} style={{ background: n.type === 'warning' ? 'var(--warning-100)' : n.type === 'success' ? 'var(--success-100)' : 'var(--teal-100)' }}>
+                    <div className={`notification-item-icon`} style={{ background: n.type === 'warning' ? 'var(--warning-100)' : n.type === 'success' ? 'var(--success-100)' : 'var(--sherwood-tan-wash)' }}>
                       <NotificationIcon type={n.type} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>

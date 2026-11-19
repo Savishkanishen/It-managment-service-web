@@ -10,7 +10,7 @@ import {
   BookOpen, UserCheck, Star
 } from 'lucide-react';
 
-const AVATAR_COLORS = ['#0891b2','#7c3aed','#059669','#dc2626','#d97706','#0284c7'];
+const AVATAR_COLORS = ['#36312E', '#C2A78A', '#7A6B5C', '#546355', '#91533B', '#485C69'];
 function getAvatarColor(id) { return AVATAR_COLORS[id.charCodeAt(id.length-1) % AVATAR_COLORS.length]; }
 
 function NavSection({ label, children }) {
@@ -57,11 +57,15 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon">
-          <Shield size={22} color="white" />
+          <img
+            src="/sri-lanka-emblem.svg"
+            alt="Emblem"
+            style={{ width: 28, height: 28, objectFit: 'contain' }}
+          />
         </div>
         <div className="sidebar-logo-text">
           <h1>ITSM Platform</h1>
-          <p>IT Service Management</p>
+          <p>Govt. of Sri Lanka</p>
         </div>
       </div>
 

@@ -202,6 +202,54 @@ class UserService {
       avatar: newUser.display_name ? newUser.display_name.slice(0, 2).toUpperCase() : 'US',
     };
   }
+
+  /**
+   * Admin Password Reset with modern bcrypt hash
+   */
+  async resetPassword(userIdOrUsername, newPassword, adminUserId) {
+    if (!newPassword || newPassword.length < 6) {
+      const error = new Error('Password must be at least 6 characters long');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const modernHashed = await hashPassword(newPassword.trim());
+    const { rows } = await db.query(
+      `UPDATE itsm.users 
+       SET password_hash = $1, updated_at = NOW() 
+       WHERE id::text = $2 OR LOWER(username) = LOWER($2) 
+       RETURNING id, username, display_name`,
+      [modernHashed, userIdOrUsername]
+    );
+
+    if (rows.length === 0) {
+      const error = new Error('User not found');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const targetUser = rows[0];
+
+    // Record audit log
+    if (adminUserId) {
+      try {
+        await db.query(
+          `INSERT INTO itsm.audit_logs (user_id, action, entity_type, entity_id, description, module)
+           VALUES ($1::uuid, 'SECURITY', 'User', $2::text, $3, 'Security')`,
+          [adminUserId, targetUser.id, `Admin reset password for user ${targetUser.display_name} (@${targetUser.username})`]
+        );
+      } catch (auditErr) {
+        console.warn('Could not record password reset audit log:', auditErr.message);
+      }
+    }
+
+    return {
+      success: true,
+      message: `Password reset successfully for @${targetUser.username}`,
+      userId: targetUser.id,
+      username: targetUser.username,
+    };
+  }
 }
 
 module.exports = new UserService();

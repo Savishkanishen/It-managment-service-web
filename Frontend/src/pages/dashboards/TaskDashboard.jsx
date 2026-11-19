@@ -19,16 +19,10 @@ export default function TaskDashboard() {
 
   return (
     <div>
-      <div className="dashboard-welcome">
-        <div className="dashboard-welcome-left">
-          <h2>Task Management Dashboard</h2>
-          <p>Internal IT Department — Project & Task Overview</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <Link to="/tasks/board" className="btn btn-secondary" style={{ fontSize: '0.82rem', padding: '8px 14px' }}><Kanban size={14} /> Board</Link>
-          <Link to="/tasks/list" className="btn btn-secondary" style={{ fontSize: '0.82rem', padding: '8px 14px' }}><ListTodo size={14} /> List</Link>
-          <Link to="/tasks/calendar" className="btn btn-secondary" style={{ fontSize: '0.82rem', padding: '8px 14px' }}><Calendar size={14} /> Calendar</Link>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 20 }}>
+        <Link to="/tasks/board" className="btn btn-secondary" style={{ fontSize: '0.82rem', padding: '8px 14px' }}><Kanban size={14} /> Board</Link>
+        <Link to="/tasks/list" className="btn btn-secondary" style={{ fontSize: '0.82rem', padding: '8px 14px' }}><ListTodo size={14} /> List</Link>
+        <Link to="/tasks/calendar" className="btn btn-secondary" style={{ fontSize: '0.82rem', padding: '8px 14px' }}><Calendar size={14} /> Calendar</Link>
       </div>
 
       {/* My Task KPIs */}

@@ -43,12 +43,8 @@ export default function ZoomRequesterDashboard() {
 
   return (
     <div>
-      <div className="dashboard-welcome">
-        <div className="dashboard-welcome-left">
-          <h2>Zoom Meeting Support Portal</h2>
-          <p>Submit meeting details and receive Zoom links from IT Administration</p>
-        </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+        <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Plus size={15} /> New Zoom Request
         </button>
       </div>

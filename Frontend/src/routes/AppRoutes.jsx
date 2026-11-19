@@ -67,10 +67,10 @@ export function DashboardRedirect() {
 export default function AppRoutes() {
   return (
     <Routes>
-      {/* Public Authentication Routes */}
+      {/* Public Authentication Routes - Only Admin can provision accounts */}
       <Route path={ROUTES.LOGIN} element={<LoginPage />} />
-      <Route path={ROUTES.SIGNUP} element={<SignUpPage />} />
-      <Route path={ROUTES.REGISTER} element={<SignUpPage />} />
+      <Route path={ROUTES.SIGNUP} element={<Navigate to={ROUTES.LOGIN} replace />} />
+      <Route path={ROUTES.REGISTER} element={<Navigate to={ROUTES.LOGIN} replace />} />
       <Route path={ROUTES.HOME} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
 
       {/* Protected Application Workspace */}

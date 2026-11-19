@@ -32,31 +32,16 @@ export default function SuperAdminDashboard() {
     { name: 'PC/Printer', value: ticketStats.byCategory['PC/Printer'] },
   ];
 
-  const today = new Date();
-  const greeting = today.getHours() < 12 ? 'Good morning' : today.getHours() < 17 ? 'Good afternoon' : 'Good evening';
-
   return (
     <div>
-      {/* Welcome Banner */}
-      <div className="dashboard-welcome">
-        <div className="dashboard-welcome-left">
-          <h2>{greeting}, {currentUser.name.split(' ')[0]} 👋</h2>
-          <p>Here's the global system status for {today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-        </div>
-        <div className="dashboard-welcome-badge">
-          <Shield size={14} style={{ display: 'inline', marginRight: 6 }} />
-          Super Administrator
-        </div>
-      </div>
-
       {/* KPI Stats */}
       <div className="stats-grid">
-        <StatCard label="Total Assets" value={assets.length} icon={Monitor} iconBg="rgba(59,130,246,0.1)" iconColor="#3b82f6" accentColor="#3b82f6" sub={`${assets.filter(a=>a.type==='PC').length} PCs · ${assets.filter(a=>a.type==='Laptop').length} Laptops · ${assets.filter(a=>a.type==='Printer').length} Printers`} />
-        <StatCard label="Active Users" value={activeUsers} icon={Users} iconBg="rgba(139,92,246,0.1)" iconColor="#8b5cf6" accentColor="#8b5cf6" sub={`${users.length - activeUsers} inactive`} />
-        <StatCard label="Open Tickets" value={ticketStats.open} icon={Ticket} iconBg="rgba(6,182,212,0.1)" iconColor="var(--teal-500)" accentColor="var(--teal-500)" sub={`${ticketStats.total} total this period`} />
-        <StatCard label="External Repairs" value={repairs.length} icon={Wrench} iconBg={overdueRepairs > 0 ? 'rgba(244,63,94,0.1)' : 'rgba(16,185,129,0.1)'} iconColor={overdueRepairs > 0 ? 'var(--danger-500)' : 'var(--success-500)'} accentColor={overdueRepairs > 0 ? 'var(--danger-500)' : 'var(--success-500)'} sub={overdueRepairs > 0 ? `⚠ ${overdueRepairs} overdue` : 'All on track'} subColor={overdueRepairs > 0 ? 'var(--danger-500)' : 'var(--success-500)'} />
-        <StatCard label="Active Tasks" value={taskStats.inProgress} icon={CheckSquare} iconBg="rgba(245,158,11,0.1)" iconColor="var(--warning-500)" accentColor="var(--warning-500)" sub={`${taskStats.overdue} overdue`} subColor={taskStats.overdue > 0 ? 'var(--danger-500)' : 'var(--success-500)'} />
-        <StatCard label="Stock Issues" value={notAvailableStock + lowStock} icon={AlertTriangle} iconBg="rgba(244,63,94,0.1)" iconColor="var(--danger-500)" accentColor="var(--danger-500)" sub={`${notAvailableStock} out · ${lowStock} low`} />
+        <StatCard label="Total Assets" value={assets.length} icon={Monitor} iconBg="var(--sherwood-tan-wash)" iconColor="var(--af-655)" accentColor="var(--sherwood-tan)" sub={`${assets.filter(a=>a.type==='PC').length} PCs · ${assets.filter(a=>a.type==='Laptop').length} Laptops · ${assets.filter(a=>a.type==='Printer').length} Printers`} />
+        <StatCard label="Active Users" value={activeUsers} icon={Users} iconBg="var(--sherwood-tan-wash)" iconColor="var(--sherwood-tan-dark)" accentColor="var(--sherwood-tan)" sub={`${users.length - activeUsers} inactive`} />
+        <StatCard label="Open Tickets" value={ticketStats.open} icon={Ticket} iconBg="var(--sherwood-tan-wash)" iconColor="var(--sherwood-tan-dark)" accentColor="var(--sherwood-tan)" sub={`${ticketStats.total} total this period`} />
+        <StatCard label="External Repairs" value={repairs.length} icon={Wrench} iconBg={overdueRepairs > 0 ? 'var(--danger-100)' : 'var(--success-100)'} iconColor={overdueRepairs > 0 ? 'var(--danger-500)' : 'var(--success-500)'} accentColor={overdueRepairs > 0 ? 'var(--danger-500)' : 'var(--success-500)'} sub={overdueRepairs > 0 ? `⚠ ${overdueRepairs} overdue` : 'All on track'} subColor={overdueRepairs > 0 ? 'var(--danger-500)' : 'var(--success-500)'} />
+        <StatCard label="Active Tasks" value={taskStats.inProgress} icon={CheckSquare} iconBg="var(--warning-100)" iconColor="var(--warning-500)" accentColor="var(--warning-500)" sub={`${taskStats.overdue} overdue`} subColor={taskStats.overdue > 0 ? 'var(--danger-500)' : 'var(--success-500)'} />
+        <StatCard label="Stock Issues" value={notAvailableStock + lowStock} icon={AlertTriangle} iconBg="var(--danger-100)" iconColor="var(--danger-500)" accentColor="var(--danger-500)" sub={`${notAvailableStock} out · ${lowStock} low`} />
       </div>
 
       <div className="card-grid">
