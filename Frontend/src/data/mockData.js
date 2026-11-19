@@ -5,6 +5,7 @@
 export const ROLES = {
   SUPER_ADMIN: 'super_admin',
   IT_ADMIN: 'it_admin',
+  IT_OFFICER: 'it_officer',
   TRAINEE: 'trainee',
   ZOOM_REQUESTER: 'zoom_requester',
 };
@@ -13,6 +14,7 @@ export const USERS = [
   { id: 'U000', name: 'System Administrator', username: 'admin', role: ROLES.IT_ADMIN, email: 'admin@mohe.gov.mv', division: 'IT Department', active: true, avatar: 'AD' },
   { id: 'U001', name: 'SuperAdmin', username: 'SuperAdmin', role: ROLES.SUPER_ADMIN, email: 'superadmin@mohe.gov.mv', division: 'IT Department', active: true, avatar: 'SA' },
   { id: 'U002', name: 'ITAdmin', username: 'ITAdmin', role: ROLES.IT_ADMIN, email: 'itadmin@mohe.gov.mv', division: 'IT Department', active: true, avatar: 'IA' },
+  { id: 'U008', name: 'IT Officer', username: 'itofficer', role: ROLES.IT_OFFICER, email: 'itofficer@mohe.gov.mv', division: 'IT Department', active: true, avatar: 'IO' },
   { id: 'U003', name: 'Sachin', username: 'Sachin', role: ROLES.TRAINEE, email: 'sachin@mohe.gov.mv', division: 'IT Department', active: true, avatar: 'SA' },
   { id: 'U004', name: 'Hirantha', username: 'Hirantha', role: ROLES.TRAINEE, email: 'hirantha@mohe.gov.mv', division: 'IT Department', active: true, avatar: 'HI' },
   { id: 'U005', name: 'Shalom', username: 'Shalom', role: ROLES.TRAINEE, email: 'shalom@mohe.gov.mv', division: 'IT Department', active: true, avatar: 'SH' },
@@ -182,7 +184,7 @@ export const setDynamicAssets = (assets) => {
 export const getUser = (id) => {
   if (!id) return null;
   const found = dynamicUsers.find(u => u.id === id || u.username?.toLowerCase() === id.toLowerCase() || u.name?.toLowerCase() === id.toLowerCase())
-             || USERS.find(u => u.id === id || u.username?.toLowerCase() === id.toLowerCase() || u.name?.toLowerCase() === id.toLowerCase());
+    || USERS.find(u => u.id === id || u.username?.toLowerCase() === id.toLowerCase() || u.name?.toLowerCase() === id.toLowerCase());
   if (found) return found;
   return { id, name: id, username: id, role: 'trainee', email: `${id}@mohe.gov.mv`, division: 'IT Department' };
 };
@@ -190,7 +192,7 @@ export const getUser = (id) => {
 export const getAsset = (id) => {
   if (!id) return null;
   return dynamicAssets.find(a => a.id === id || a.tag === id || a.serial === id)
-      || ASSETS.find(a => a.id === id || a.tag === id);
+    || ASSETS.find(a => a.id === id || a.tag === id);
 };
 
 export const calcTaskProgress = (task) => {

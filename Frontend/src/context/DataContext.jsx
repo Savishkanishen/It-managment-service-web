@@ -325,14 +325,19 @@ export function DataProvider({ children }) {
     const newReq = {
       id: `ZM-${Date.now()}`,
       ...data,
-      meetingLink: '',
-      requestedBy: user?.id,
-      status: 'Pending',
+      meetingLink: data.meetingLink || '',
+      requestedBy: data.requestedBy || user?.id,
+      status: data.status || (data.meetingLink ? 'Confirmed' : 'Pending'),
       createdAt: new Date().toISOString()
     };
     setZoomRequests(prev => [newReq, ...prev]);
     addAuditLog(user?.id, user?.username || user?.name, 'CREATE', 'ZoomRequest', newReq.id, `Submitted Zoom request: ${data.meetingName}`, 'Zoom Support');
-    const serverResult = await apiCall('/zoom-requests', 'POST', { ...data, requestedBy: user?.id });
+    const serverResult = await apiCall('/zoom-requests', 'POST', {
+      ...data,
+      requestedBy: data.requestedBy || user?.id,
+      meetingLink: data.meetingLink || '',
+      status: data.status || (data.meetingLink ? 'Confirmed' : 'Pending')
+    });
     if (serverResult) {
       setZoomRequests(prev => prev.map(z => z.id === newReq.id ? serverResult : z));
       return serverResult;
@@ -356,6 +361,18 @@ export function DataProvider({ children }) {
     } : z));
     addAuditLog(user?.id, user?.username || user?.name, 'UPDATE_LINK', 'ZoomRequest', id, `Uploaded Zoom meeting link for ${id}`, 'Zoom Support');
     apiCall(`/zoom-requests/${id}/link`, 'PATCH', { meetingLink, linkUploadedBy: user?.id });
+  };
+
+  const updateZoomStatus = (id, status, user) => {
+    setZoomRequests(prev => prev.map(z => z.id === id ? { ...z, status } : z));
+    addAuditLog(user?.id, user?.username || user?.name, 'UPDATE_STATUS', 'ZoomRequest', id, `Updated Zoom request status to ${status}`, 'Zoom Support');
+    apiCall(`/zoom-requests/${id}/status`, 'PATCH', { status });
+  };
+
+  const deleteZoomRequest = (id, user) => {
+    setZoomRequests(prev => prev.filter(z => z.id !== id));
+    addAuditLog(user?.id, user?.username || user?.name, 'DELETE', 'ZoomRequest', id, `Deleted Zoom request ${id}`, 'Zoom Support');
+    apiCall(`/zoom-requests/${id}`, 'DELETE');
   };
 
   // --- USERS ---
@@ -569,7 +586,7 @@ export function DataProvider({ children }) {
       updateStockStatus, updateStockQuantity, createStockItem,
       updateTicketStatus, assignTicket, submitReassignmentRequest, rejectReassignmentRequest, createTicket,
       updateTaskStatus, updateSubtaskStatus, createTask,
-      createZoomRequest, assignZoomRequest, updateZoomMeetingLink,
+      createZoomRequest, assignZoomRequest, updateZoomMeetingLink, updateZoomStatus, deleteZoomRequest,
       createUser, updateUserRole, toggleUserActive, resetUserPassword,
       broadcasts, addBroadcast, toggleBroadcast, removeBroadcast,
       createRepair, closeRepair,

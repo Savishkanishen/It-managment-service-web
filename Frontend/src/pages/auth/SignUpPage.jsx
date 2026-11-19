@@ -314,6 +314,7 @@ export default function SignUpPage() {
                     onChange={handleChange}
                   >
                     <option value={ROLES.TRAINEE}>Trainee / Staff</option>
+                    <option value={ROLES.IT_OFFICER}>IT Officer</option>
                     <option value={ROLES.ZOOM_REQUESTER}>Zoom Requester</option>
                     <option value={ROLES.IT_ADMIN}>IT Admin (Requires IT Admin creation)</option>
                   </select>

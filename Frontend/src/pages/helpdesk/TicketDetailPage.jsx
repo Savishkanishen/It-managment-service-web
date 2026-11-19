@@ -25,8 +25,8 @@ export default function TicketDetailPage() {
   const ticket = tickets.find(t => t.id === id || t.ticketNumber === id);
   if (!ticket) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>Ticket not found</div>;
 
-  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser?.role);
-  if (!isAdmin && !isTicketAssignedToUser(ticket, currentUser)) {
+  const canManage = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser?.role);
+  if (!canManage && !isTicketAssignedToUser(ticket, currentUser)) {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
         <div style={{ display: 'inline-flex', padding: '16px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '50%', color: 'var(--danger-500)', marginBottom: '16px' }}>
@@ -74,7 +74,7 @@ export default function TicketDetailPage() {
     setRejectReason('');
   };
 
-  const technicians = (users && users.length > 0 ? users : USERS).filter(u => [ROLES.IT_ADMIN, ROLES.TRAINEE].includes(u.role));
+  const technicians = (users && users.length > 0 ? users : USERS).filter(u => [ROLES.IT_ADMIN, ROLES.IT_OFFICER, ROLES.TRAINEE].includes(u.role));
 
   return (
     <div>
@@ -97,8 +97,8 @@ export default function TicketDetailPage() {
           </div>
         </div>
         <div className="detail-actions">
-          {isAdmin && <button className="btn btn-secondary" onClick={() => setAssignModal(true)}><User size={14} /> Assign</button>}
-          {(isAssignee || isAdmin) && nextStatus && (
+          {canManage && <button className="btn btn-secondary" onClick={() => setAssignModal(true)}><User size={14} /> Assign</button>}
+          {(isAssignee || canManage) && nextStatus && (
             <button className="btn btn-primary" onClick={handleStatusAdvance}>
               Move to {nextStatus} <ChevronRight size={14} />
             </button>
@@ -120,7 +120,7 @@ export default function TicketDetailPage() {
               Requested at {new Date(ticket.reassignmentRequest.requestedAt).toLocaleString()}
             </div>
           </div>
-          {isAdmin && (
+          {canManage && (
             <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', flexShrink: 0 }}>
               <button className="btn btn-outline-danger btn-sm" onClick={() => setRejectModal(true)}>
                 <XCircle size={14} /> Reject
@@ -219,10 +219,10 @@ export default function TicketDetailPage() {
           <div className="card-body">
             {assignedUser ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--gray-100)', marginBottom: 16 }}>
-                <div className="avatar avatar-lg" style={{ background: 'var(--teal-500)' }}>{assignedUser.name.slice(0,2)}</div>
+                <div className="avatar avatar-lg" style={{ background: 'var(--teal-500)' }}>{assignedUser.name.slice(0, 2)}</div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{assignedUser.name}</div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--gray-500)' }}>{assignedUser.role.replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase())}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--gray-500)' }}>{assignedUser.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</div>
                 </div>
               </div>
             ) : (
@@ -276,7 +276,7 @@ export default function TicketDetailPage() {
           <label className="form-label">Select Technician</label>
           <select className="form-select" value={selectedAssignee} onChange={e => setSelectedAssignee(e.target.value)}>
             <option value="">-- Select --</option>
-            {technicians.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_',' ')})</option>)}
+            {technicians.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_', ' ')})</option>)}
           </select>
         </div>
       </Modal>

@@ -23,11 +23,12 @@ export function CategoryBadge({ category }) {
 
 export function RoleBadge({ role }) {
   const map = {
-    super_admin: { cls: 'badge-red', label: 'Super Admin' },
-    it_admin:    { cls: 'badge-blue', label: 'IT Admin' },
-    trainee:     { cls: 'badge-green', label: 'Trainee' },
-    zoom_requester: { cls: 'badge-purple', label: 'Zoom Requester' },
+    super_admin: { cls: 'badge-dark', label: 'Super Admin' },
+    it_admin: { cls: 'badge-purple', label: 'IT Admin' },
+    it_officer: { cls: 'badge-rose', label: 'IT Officer' },
+    trainee: { cls: 'badge-green', label: 'Trainee' },
+    zoom_requester: { cls: 'badge-teal', label: 'Zoom Requester' },
   };
-  const r = map[role] || { cls: 'badge-gray', label: role };
+  const r = map[role] || { cls: 'badge-gray', label: role ? String(role).replace(/_/g, ' ') : '' };
   return <span className={`badge ${r.cls}`}>{r.label}</span>;
 }

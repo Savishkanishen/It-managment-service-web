@@ -37,6 +37,7 @@ const getRoleDisplayName = (role) => {
   if (!role) return '';
   switch (role) {
     case 'it_admin': return 'IT Admin';
+    case 'it_officer': return 'IT Officer';
     case 'trainee': return 'Trainee';
     case 'super_admin': return 'Super Admin';
     case 'zoom_requester': return 'Zoom Requester';

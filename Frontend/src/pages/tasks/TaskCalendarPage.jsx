@@ -13,8 +13,8 @@ export default function TaskCalendarPage() {
   const { currentUser } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role);
-  const visibleTasks = isAdmin ? tasks : tasks.filter(t => isTaskAssignedToUser(t, currentUser));
+  const canManageTasks = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser.role);
+  const visibleTasks = canManageTasks ? tasks : tasks.filter(t => isTaskAssignedToUser(t, currentUser));
 
   const dateStr = (d) => new Date(d).toDateString();
   const selectedStr = selectedDate.toDateString();
@@ -41,7 +41,7 @@ export default function TaskCalendarPage() {
         <div className="page-header-left"><h1>Task Calendar</h1><p>Deadline & milestone calendar view</p></div>
       </div>
 
-      {!isAdmin && (
+      {!canManageTasks && (
         <div style={{
           display: 'flex',
           alignItems: 'center',

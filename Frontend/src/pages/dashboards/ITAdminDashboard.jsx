@@ -17,11 +17,12 @@ import {
 const ROLE_OPTIONS = [
   { value: ROLES.SUPER_ADMIN, label: 'Super Administrator' },
   { value: ROLES.IT_ADMIN, label: 'IT Administrator' },
+  { value: ROLES.IT_OFFICER, label: 'IT Officer' },
   { value: ROLES.TRAINEE, label: 'Trainee / Staff' },
   { value: ROLES.ZOOM_REQUESTER, label: 'Zoom Requester' },
 ];
 
-const AVATAR_COLORS = ['#36312E', '#C2A78A', '#7A6B5C', '#546355', '#91533B', '#485C69'];
+const AVATAR_COLORS = ['#190019', '#2B124C', '#522B5B', '#854F6C', '#6E3C56', '#431C3D'];
 const getAvatarColor = (id = '') => {
   const str = String(id);
   const code = str.length > 0 ? str.charCodeAt(str.length - 1) : 0;
@@ -32,7 +33,8 @@ export default function ITAdminDashboard() {
   const { currentUser } = useAuth();
   const {
     tickets, stock, repairs, zoomRequests, users, divisions,
-    createUser, resetUserPassword, broadcasts, addBroadcast, toggleBroadcast, removeBroadcast
+    createUser, resetUserPassword, toggleUserActive, updateZoomMeetingLink,
+    broadcasts, addBroadcast, toggleBroadcast, removeBroadcast
   } = useData();
   const { addToast } = useNotifications();
 
@@ -48,6 +50,10 @@ export default function ITAdminDashboard() {
   });
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Quick Zoom Link Modal State (Admin Feature)
+  const [zoomLinkModal, setZoomLinkModal] = useState(null);
+  const [quickMeetingLink, setQuickMeetingLink] = useState('');
 
   // Password Reset Modal State (Admin Feature)
   const [resetModalUser, setResetModalUser] = useState(null);
@@ -194,7 +200,7 @@ export default function ITAdminDashboard() {
 
   return (
     <div>
-      {/* Quick Action Toolbar (replacing dark name banner) */}
+      {/* Quick Action Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
         <button
           className="btn btn-primary"
@@ -203,6 +209,13 @@ export default function ITAdminDashboard() {
         >
           <UserPlus size={15} /> Create Account
         </button>
+        <Link
+          to="/zoom/new"
+          className="btn btn-secondary"
+          style={{ fontSize: '0.82rem', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <Video size={15} /> Schedule Zoom
+        </Link>
         <button
           className="btn btn-secondary"
           onClick={() => setBroadcastModal(true)}
@@ -247,9 +260,9 @@ export default function ITAdminDashboard() {
 
       {/* Primary KPI Stats */}
       <div className="stats-grid">
-        <StatCard label="Total Accounts" value={users.length} icon={Users} iconBg="var(--sherwood-tan-wash)" iconColor="var(--af-655)" accentColor="var(--sherwood-tan)" sub={`${users.filter(u=>['super_admin','it_admin'].includes(u.role)).length} admin accounts`} />
+        <StatCard label="Total Accounts" value={users.length} icon={Users} iconBg="var(--sherwood-tan-wash)" iconColor="var(--af-655)" accentColor="var(--sherwood-tan)" sub={`${users.filter(u => ['super_admin', 'it_admin'].includes(u.role)).length} admin accounts`} />
         <StatCard label="Open Tickets" value={stats.open} icon={Ticket} iconBg="var(--sherwood-tan-wash)" iconColor="var(--sherwood-tan-dark)" accentColor="var(--sherwood-tan)" sub={`${stats.total} total`} />
-        <StatCard label="Stock Issues" value={lowStock.length} icon={Package} iconBg="var(--danger-100)" iconColor="var(--danger-500)" accentColor="var(--danger-500)" sub={`${stock.filter(s=>s.status==='Not Available').length} out of stock`} />
+        <StatCard label="Stock Issues" value={lowStock.length} icon={Package} iconBg="var(--danger-100)" iconColor="var(--danger-500)" accentColor="var(--danger-500)" sub={`${stock.filter(s => s.status === 'Not Available').length} out of stock`} />
         <StatCard label="Overdue Repairs" value={overdueRepairs.length} icon={Wrench} iconBg={overdueRepairs.length > 0 ? 'var(--danger-100)' : 'var(--success-100)'} iconColor={overdueRepairs.length > 0 ? 'var(--danger-500)' : 'var(--success-500)'} accentColor={overdueRepairs.length > 0 ? 'var(--danger-500)' : 'var(--success-500)'} sub="External vendor" />
         <StatCard label="Zoom Sessions" value={upcomingZoom.length} icon={Video} iconBg="var(--sherwood-tan-wash)" iconColor="var(--af-655)" accentColor="var(--sherwood-tan)" sub="Upcoming & pending" />
       </div>
@@ -311,14 +324,27 @@ export default function ITAdminDashboard() {
                     </span>
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => openResetModal(u)}
-                      style={{ fontSize: '0.74rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                      title="Reset User Password"
-                    >
-                      <Key size={13} color="var(--sherwood-tan-dark)" /> Reset Password
-                    </button>
+                    <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => {
+                          toggleUserActive(u.id);
+                          addToast('info', 'Status Toggled', `User @${u.username} is now ${u.active ? 'Inactive' : 'Active'}.`);
+                        }}
+                        style={{ fontSize: '0.72rem', padding: '4px 8px', color: u.active ? '#854F6C' : 'var(--success-700)' }}
+                        title="Toggle Active/Inactive"
+                      >
+                        {u.active ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => openResetModal(u)}
+                        style={{ fontSize: '0.74rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                        title="Reset User Password"
+                      >
+                        <Key size={13} color="#522B5B" /> Reset Password
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -419,7 +445,7 @@ export default function ITAdminDashboard() {
                 <tr><th>ID</th><th>Title</th><th>Category</th><th>Priority</th><th>Status</th></tr>
               </thead>
               <tbody>
-                {tickets.filter(t => ['New','Assigned','In Progress','Pending Parts'].includes(t.status)).slice(0,5).map(t => (
+                {tickets.filter(t => ['New', 'Assigned', 'In Progress', 'Pending Parts'].includes(t.status)).slice(0, 5).map(t => (
                   <tr key={t.id}>
                     <td><Link to={`/helpdesk/${t.id}`} style={{ color: 'var(--teal-600)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.78rem' }}>{t.id}</Link></td>
                     <td style={{ maxWidth: 180 }}><span className="truncate" style={{ display: 'block' }}>{t.title}</span></td>
@@ -461,24 +487,61 @@ export default function ITAdminDashboard() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Upcoming Zoom Sessions</span>
-            <Link to="/zoom" className="btn btn-ghost btn-sm"><ArrowRight size={14} /></Link>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Link to="/zoom/new" className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.74rem', padding: '4px 10px' }}>
+                <Plus size={13} /> Schedule Meeting
+              </Link>
+              <Link to="/zoom" className="btn btn-ghost btn-sm" title="View All Zoom Requests"><ArrowRight size={14} /></Link>
+            </div>
           </div>
           <div className="card-body" style={{ paddingTop: 8 }}>
-            {upcomingZoom.map(z => (
+            {upcomingZoom.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--gray-400)', fontSize: '0.84rem' }}>
+                No pending or upcoming Zoom sessions.
+              </div>
+            ) : upcomingZoom.map(z => (
               <div key={z.id} className={`zoom-card zoom-card-level-${z.meetingLevel.toLowerCase()}`} style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                  <div className="zoom-meeting-name">{z.meetingName}</div>
+                  <div>
+                    <span className="id-chip" style={{ fontSize: '0.68rem', marginBottom: 2, display: 'inline-block' }}>{z.id}</span>
+                    <div className="zoom-meeting-name" style={{ fontSize: '1.05rem' }}>{z.meetingName}</div>
+                  </div>
                   <Badge status={z.meetingLevel === 'Critical' ? 'High' : 'Medium'}>{z.meetingLevel}</Badge>
                 </div>
-                <div className="zoom-detail-row"><Clock size={13} />{new Date(z.scheduledDate).toLocaleString()}</div>
-                <div className="zoom-detail-row">{z.location}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                <div className="zoom-detail-row"><Clock size={13} color="#854F6C" />{new Date(z.scheduledDate).toLocaleString()}</div>
+                <div className="zoom-detail-row"><Building size={13} color="#854F6C" />{z.location}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTop: '1px solid #DFB6B2' }}>
                   <Badge status={z.status} />
-                  {z.meetingLink ? (
-                    <span style={{ fontSize: '0.72rem', color: 'var(--teal-600)', fontWeight: 600 }}>✓ Link Uploaded</span>
-                  ) : (
-                    <span style={{ fontSize: '0.72rem', color: 'var(--warning-700)', fontWeight: 600 }}>⚠ Link Pending</span>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {z.meetingLink ? (
+                      <>
+                        <a
+                          href={z.meetingLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: '0.72rem', padding: '3px 8px', color: '#522B5B', fontWeight: 700 }}
+                        >
+                          Join Link
+                        </a>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => { setZoomLinkModal(z); setQuickMeetingLink(z.meetingLink); }}
+                          style={{ fontSize: '0.72rem', padding: '3px 6px' }}
+                        >
+                          Edit
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => { setZoomLinkModal(z); setQuickMeetingLink(''); }}
+                        style={{ fontSize: '0.72rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <Sparkles size={12} /> Provision Link
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -798,6 +861,72 @@ export default function ITAdminDashboard() {
             />
           </div>
         </form>
+      </Modal>
+
+      {/* Quick Provision Zoom Link Modal */}
+      <Modal
+        isOpen={!!zoomLinkModal}
+        onClose={() => { setZoomLinkModal(null); setQuickMeetingLink(''); }}
+        title="Provision Official Zoom Meeting Link"
+        size="sm"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => { setZoomLinkModal(null); setQuickMeetingLink(''); }}>Cancel</button>
+            <button
+              className="btn btn-primary"
+              disabled={!quickMeetingLink.trim()}
+              onClick={() => {
+                if (!quickMeetingLink.trim()) return;
+                updateZoomMeetingLink(zoomLinkModal.id, quickMeetingLink.trim(), currentUser);
+                addToast('success', 'Zoom Link Uploaded', `Official Zoom link sent for "${zoomLinkModal.meetingName}".`);
+                setZoomLinkModal(null);
+                setQuickMeetingLink('');
+              }}
+            >
+              Upload Link
+            </button>
+          </>
+        }
+      >
+        {zoomLinkModal && (
+          <div>
+            <div style={{ padding: '12px 14px', background: 'var(--oc-45)', borderRadius: 'var(--radius-md)', marginBottom: 16, border: '1px solid #DFB6B2' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#190019' }}>{zoomLinkModal.meetingName}</div>
+              <div style={{ fontSize: '0.78rem', color: '#854F6C', marginTop: 2 }}>
+                {new Date(zoomLinkModal.scheduledDate).toLocaleString()} • {zoomLinkModal.location}
+              </div>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label className="form-label" style={{ marginBottom: 0 }}>Zoom Meeting Link / URL <span className="required">*</span></label>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    const meetingId = Math.floor(1000000000 + Math.random() * 9000000000);
+                    const pwd = Math.random().toString(36).slice(2, 10);
+                    setQuickMeetingLink(`https://zoom.us/j/${meetingId}?pwd=${pwd}`);
+                    addToast('info', 'Link Generated', 'Official Zoom meeting URL auto-generated.');
+                  }}
+                  style={{ fontSize: '0.72rem', color: '#522B5B', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <Sparkles size={12} /> ⚡ Auto-Generate URL
+                </button>
+              </div>
+              <input
+                className="form-input"
+                placeholder="https://zoom.us/j/1234567890?pwd=..."
+                value={quickMeetingLink}
+                onChange={e => setQuickMeetingLink(e.target.value)}
+                autoFocus
+                style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }}
+              />
+              <div className="form-hint" style={{ fontSize: '0.72rem', color: 'var(--gray-500)', marginTop: 4 }}>
+                The link will be immediately delivered to the requester and published to the Zoom Portal.
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

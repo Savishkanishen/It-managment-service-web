@@ -19,8 +19,8 @@ export default function TaskDetailPage() {
   const task = tasks.find(t => t.id === id);
   if (!task) return <div style={{ padding:40, textAlign:'center', color:'var(--gray-400)' }}>Task not found</div>;
 
-  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role);
-  if (!isAdmin && !isTaskAssignedToUser(task, currentUser)) {
+  const canManageTasks = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser.role);
+  if (!canManageTasks && !isTaskAssignedToUser(task, currentUser)) {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
         <div style={{ display: 'inline-flex', padding: '16px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '50%', color: 'var(--danger-500)', marginBottom: '16px' }}>
@@ -40,7 +40,7 @@ export default function TaskDetailPage() {
   const isAssignee = (task.assignees || []).includes(currentUser.id);
   const isTrainee = currentUser.role === ROLES.TRAINEE;
 
-  const canEditStatus = isAdmin || isAssignee || isTrainee;
+  const canEditStatus = canManageTasks || isAssignee || isTrainee;
 
   const handleSubtaskToggle = (subtask) => {
     const newStatus = subtask.status === 'Completed' ? 'In Progress' : 'Completed';

@@ -7,6 +7,7 @@
 const ROLE_SLUG_MAP = {
   super_admin: 'Super Admin',
   it_admin: 'IT Admin',
+  it_officer: 'IT Officer',
   trainee: 'Trainee',
   zoom_requester: 'Zoom Requester',
 };
@@ -34,6 +35,7 @@ function normalizeRole(roleName) {
   // 3. Keyword / fuzzy match (handles 'admin', 'IT', 'SuperAdmin', etc.)
   if (clean.includes('super')) return 'super_admin';
   if (clean.includes('it_admin') || clean.includes('itadmin')) return 'it_admin';
+  if (clean.includes('it_officer') || clean.includes('itofficer') || clean.includes('officer')) return 'it_officer';
   if (clean === 'admin' || clean === 'administrator' || clean === 'it') return 'it_admin';
   if (clean.includes('zoom')) return 'zoom_requester';
   if (clean.includes('trainee') || clean.includes('intern') || clean.includes('staff')) return 'trainee';

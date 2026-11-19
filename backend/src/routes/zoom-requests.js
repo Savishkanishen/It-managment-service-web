@@ -35,22 +35,25 @@ router.get('/', async (req, res) => {
 
 // POST /api/zoom-requests
 router.post('/', async (req, res) => {
-  const { meetingName, scheduledDate, scheduledTime, location, meetingLevel, requiredEquipment, requestedBy, user } = req.body;
+  const { meetingName, scheduledDate, scheduledTime, location, meetingLevel, requiredEquipment, requestedBy, user, meetingLink, status } = req.body;
   try {
     const time = scheduledDate || scheduledTime || new Date().toISOString();
     const reqBy = await resolveUserId(db, requestedBy || user?.id);
+    const initialStatus = status || (meetingLink ? 'Confirmed' : 'Pending');
 
     const { rows } = await db.query(
       `INSERT INTO itsm.zoom_requests 
-        (meeting_name, scheduled_time, status, requester_id, location, meeting_level, required_equipment)
-       VALUES ($1, $2, 'Pending', $3, $4, $5, $6) RETURNING *`,
+        (meeting_name, scheduled_time, status, requester_id, location, meeting_level, required_equipment, meeting_link)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
       [
         meetingName,
         time,
+        initialStatus,
         reqBy,
         location || 'Main Conference Room',
         meetingLevel || 'Medium',
         JSON.stringify(requiredEquipment || []),
+        meetingLink || null,
       ]
     );
 
@@ -103,6 +106,36 @@ router.patch('/:id/link', async (req, res) => {
   } catch (err) {
     console.error('Error updating zoom link:', err);
     res.status(500).json({ error: 'Server error updating zoom link' });
+  }
+});
+
+// PATCH /api/zoom-requests/:id/status
+router.patch('/:id/status', async (req, res) => {
+  const { status } = req.body;
+  try {
+    const { rows } = await db.query(
+      `UPDATE itsm.zoom_requests 
+       SET status = $1 
+       WHERE id::text = $2 RETURNING *`,
+      [status, req.params.id]
+    );
+
+    if (rows.length === 0) return res.status(404).json({ error: 'Zoom request not found' });
+    res.json(formatZoom(rows[0]));
+  } catch (err) {
+    console.error('Error updating zoom status:', err);
+    res.status(500).json({ error: 'Server error updating zoom status' });
+  }
+});
+
+// DELETE /api/zoom-requests/:id
+router.delete('/:id', async (req, res) => {
+  try {
+    await db.query(`DELETE FROM itsm.zoom_requests WHERE id::text = $1`, [req.params.id]);
+    res.json({ success: true, message: 'Zoom request deleted' });
+  } catch (err) {
+    console.error('Error deleting zoom request:', err);
+    res.status(500).json({ error: 'Server error deleting zoom request' });
   }
 });
 

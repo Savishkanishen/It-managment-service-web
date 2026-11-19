@@ -16,7 +16,7 @@ export default function NewTicketPage() {
     division: '', assetId: '', assignedTo: '',
   });
 
-  const technicians = (users && users.length > 0 ? users : USERS).filter(u => [ROLES.IT_ADMIN, ROLES.TRAINEE].includes(u.role));
+  const technicians = (users && users.length > 0 ? users : USERS).filter(u => [ROLES.IT_ADMIN, ROLES.IT_OFFICER, ROLES.TRAINEE].includes(u.role));
   const setField = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async (e) => {
@@ -102,7 +102,7 @@ export default function NewTicketPage() {
                 <label className="form-label">Assign To</label>
                 <select className="form-select" value={form.assignedTo} onChange={e => setField('assignedTo', e.target.value)}>
                   <option value="">-- Assign Later --</option>
-                  {technicians.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase())})</option>)}
+                  {technicians.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())})</option>)}
                 </select>
               </div>
               {!form.assignedTo && (

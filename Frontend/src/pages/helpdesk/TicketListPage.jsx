@@ -18,11 +18,11 @@ export default function TicketListPage() {
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [search, setSearch] = useState('');
 
-  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role);
+  const canManageTickets = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser.role);
   const isTrainee = currentUser.role === ROLES.TRAINEE;
 
-  // Privacy Rule: Non-admin members only see tickets assigned to them or reported by them
-  const visibleTickets = isAdmin ? tickets : tickets.filter(t => isTicketAssignedToUser(t, currentUser));
+  // Privacy Rule: Trainees only see tickets assigned to them or reported by them. Admins and IT Officers see all tickets to assign and manage work.
+  const visibleTickets = canManageTickets ? tickets : tickets.filter(t => isTicketAssignedToUser(t, currentUser));
 
   const pendingReassignCount = visibleTickets.filter(t => t.reassignmentRequest?.status === 'Pending').length;
   const resolvedCount = visibleTickets.filter(t => t.status === 'Resolved').length;
@@ -38,26 +38,28 @@ export default function TicketListPage() {
 
   const columns = [
     { key: 'id', label: 'Ticket ID', render: (v) => <Link to={`/helpdesk/${v}`} style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--teal-600)', fontWeight: 600, fontSize: '0.8rem' }}>{v}</Link> },
-    { key: 'title', label: 'Issue', render: (v, row) => (
-      <div>
-        <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: 2 }}>{v}</div>
-        <div style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>{row.division}</div>
-        {row.reassignmentRequest?.status === 'Pending' && (
-          <span className="badge badge-amber" style={{ fontSize: '0.65rem', marginTop: 3 }}>
-            <RefreshCw size={9} /> Reassignment Pending
-          </span>
-        )}
-        {row.reassignmentRequest?.status === 'Rejected' && (
-          <span className="badge badge-red" style={{ fontSize: '0.65rem', marginTop: 3 }}>
-            <XCircle size={9} /> Reassign Rejected
-          </span>
-        )}
-      </div>
-    )},
+    {
+      key: 'title', label: 'Issue', render: (v, row) => (
+        <div>
+          <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: 2 }}>{v}</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>{row.division}</div>
+          {row.reassignmentRequest?.status === 'Pending' && (
+            <span className="badge badge-amber" style={{ fontSize: '0.65rem', marginTop: 3 }}>
+              <RefreshCw size={9} /> Reassignment Pending
+            </span>
+          )}
+          {row.reassignmentRequest?.status === 'Rejected' && (
+            <span className="badge badge-red" style={{ fontSize: '0.65rem', marginTop: 3 }}>
+              <XCircle size={9} /> Reassign Rejected
+            </span>
+          )}
+        </div>
+      )
+    },
     { key: 'category', label: 'Category', render: v => <CategoryBadge category={v} /> },
     { key: 'priority', label: 'Priority', render: v => <PriorityBadge priority={v} /> },
     { key: 'status', label: 'Status', render: v => <Badge status={v} /> },
-    { key: 'assignedTo', label: 'Assignee', render: v => { const u = getUser(v); return u ? <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><div className="avatar avatar-sm" style={{ background: 'var(--teal-500)' }}>{u.name.slice(0,2)}</div><span style={{ fontSize: '0.8rem' }}>{u.name}</span></div> : '—'; }},
+    { key: 'assignedTo', label: 'Assignee', render: v => { const u = getUser(v); return u ? <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><div className="avatar avatar-sm" style={{ background: 'var(--teal-500)' }}>{u.name.slice(0, 2)}</div><span style={{ fontSize: '0.8rem' }}>{u.name}</span></div> : '—'; } },
     { key: 'createdAt', label: 'Created', render: v => <span style={{ fontSize: '0.78rem', color: 'var(--gray-500)' }}>{new Date(v).toLocaleDateString()}</span> },
     { key: 'action', label: '', sortable: false, render: (_, row) => <Link to={`/helpdesk/${row.id}`} className="btn btn-secondary btn-sm">View</Link> },
   ];
@@ -74,7 +76,7 @@ export default function TicketListPage() {
         </div>
       </div>
 
-      {!isAdmin && (
+      {!canManageTickets && (
         <div style={{
           display: 'flex',
           alignItems: 'center',

@@ -55,6 +55,7 @@ export function DashboardRedirect() {
   switch (currentUser.role) {
     case ROLES.SUPER_ADMIN: return <Navigate to={ROUTES.DASHBOARD_SUPER_ADMIN} replace />;
     case ROLES.IT_ADMIN:    return <Navigate to={ROUTES.DASHBOARD_IT_ADMIN} replace />;
+    case ROLES.IT_OFFICER:  return <Navigate to={ROUTES.DASHBOARD_TASKS} replace />;
     case ROLES.TRAINEE:     return <Navigate to={ROUTES.DASHBOARD_TRAINEE} replace />;
     case ROLES.ZOOM_REQUESTER: return <Navigate to={ROUTES.DASHBOARD_ZOOM} replace />;
     default: return <Navigate to={ROUTES.LOGIN} replace />;
@@ -77,38 +78,38 @@ export default function AppRoutes() {
       <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route path="dashboard" element={<DashboardRedirect />} />
         <Route path="dashboard/super-admin" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><SuperAdminDashboard /></ProtectedRoute>} />
-        <Route path="dashboard/it-admin"    element={<ProtectedRoute allowedRoles={[ROLES.IT_ADMIN]}><ITAdminDashboard /></ProtectedRoute>} />
-        <Route path="dashboard/trainee"     element={<ProtectedRoute allowedRoles={[ROLES.TRAINEE]}><TraineeDashboard /></ProtectedRoute>} />
-        <Route path="dashboard/tasks"       element={<TaskDashboard />} />
-        <Route path="dashboard/zoom"        element={<ZoomRequesterDashboard />} />
+        <Route path="dashboard/it-admin" element={<ProtectedRoute allowedRoles={[ROLES.IT_ADMIN]}><ITAdminDashboard /></ProtectedRoute>} />
+        <Route path="dashboard/trainee" element={<ProtectedRoute allowedRoles={[ROLES.TRAINEE]}><TraineeDashboard /></ProtectedRoute>} />
+        <Route path="dashboard/tasks" element={<TaskDashboard />} />
+        <Route path="dashboard/zoom" element={<ZoomRequesterDashboard />} />
 
         {/* Assets & Stock */}
-        <Route path="assets"         element={<AssetListPage />} />
-        <Route path="assets/:id"     element={<AssetDetailPage />} />
-        <Route path="stock"          element={<StockPage />} />
+        <Route path="assets" element={<AssetListPage />} />
+        <Route path="assets/:id" element={<AssetDetailPage />} />
+        <Route path="stock" element={<StockPage />} />
 
         {/* Helpdesk & Repairs */}
-        <Route path="helpdesk"       element={<TicketListPage />} />
-        <Route path="helpdesk/new"   element={<NewTicketPage />} />
-        <Route path="helpdesk/:id"   element={<TicketDetailPage />} />
-        <Route path="repairs"        element={<RepairListPage />} />
-        <Route path="repairs/:id"    element={<RepairDetailPage />} />
+        <Route path="helpdesk" element={<TicketListPage />} />
+        <Route path="helpdesk/new" element={<NewTicketPage />} />
+        <Route path="helpdesk/:id" element={<TicketDetailPage />} />
+        <Route path="repairs" element={<RepairListPage />} />
+        <Route path="repairs/:id" element={<RepairDetailPage />} />
 
         {/* Meetings & Publications */}
-        <Route path="zoom"           element={<ZoomListPage />} />
-        <Route path="zoom/new"       element={<ZoomRequestPage />} />
-        <Route path="publications"   element={<PublicationPage />} />
+        <Route path="zoom" element={<ZoomListPage />} />
+        <Route path="zoom/new" element={<ZoomRequestPage />} />
+        <Route path="publications" element={<PublicationPage />} />
 
         {/* Task Management */}
-        <Route path="tasks/board"    element={<TaskBoardPage />} />
-        <Route path="tasks/list"     element={<TaskListPage />} />
+        <Route path="tasks/board" element={<TaskBoardPage />} />
+        <Route path="tasks/list" element={<TaskListPage />} />
         <Route path="tasks/calendar" element={<TaskCalendarPage />} />
-        <Route path="tasks/mine"     element={<MyTasksPage />} />
-        <Route path="tasks/:id"      element={<TaskDetailPage />} />
+        <Route path="tasks/mine" element={<MyTasksPage />} />
+        <Route path="tasks/:id" element={<TaskDetailPage />} />
 
         {/* Administration */}
-        <Route path="users"          element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.IT_ADMIN]}><UserManagementPage /></ProtectedRoute>} />
-        <Route path="audit"          element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.IT_ADMIN]}><AuditLogPage /></ProtectedRoute>} />
+        <Route path="users" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.IT_ADMIN]}><UserManagementPage /></ProtectedRoute>} />
+        <Route path="audit" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.IT_ADMIN]}><AuditLogPage /></ProtectedRoute>} />
       </Route>
     </Routes>
   );

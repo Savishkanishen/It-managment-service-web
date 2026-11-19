@@ -300,6 +300,7 @@ INSERT INTO itsm.roles (id, name, description)
 VALUES 
   ('eb723779-f2cd-458d-bfd6-9eb89ef80d74', 'Super Admin', 'Full system access'),
   ('60441f29-8089-4c9b-bb35-3b9513921398', 'IT Admin', 'IT asset and ticket management'),
+  ('77777777-7777-7777-7777-777777777701', 'IT Officer', 'Work assignment, task management, stock viewing, and Zoom requests'),
   ('d4113ef4-4ca2-485f-8f1e-502a7dfc0d7f', 'Trainee', 'Limited viewing access'),
   ('1d93a2b8-7a4b-47bc-817c-79f9d75558a6', 'Zoom Requester', 'Can only request Zoom meetings')
 ON CONFLICT (name) DO NOTHING;

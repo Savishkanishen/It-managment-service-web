@@ -9,14 +9,14 @@ function normalizeRole(role) {
   const r = role.toString().toLowerCase().replace(/[\s\-]+/g, '_');
   // Direct slug match
   if (r === 'super_admin') return ROLES.SUPER_ADMIN;
-  if (r === 'it_admin')    return ROLES.IT_ADMIN;
-  if (r === 'trainee')     return ROLES.TRAINEE;
+  if (r === 'it_admin') return ROLES.IT_ADMIN;
+  if (r === 'trainee') return ROLES.TRAINEE;
   if (r === 'zoom_requester') return ROLES.ZOOM_REQUESTER;
   // Keyword / fuzzy match
-  if (r.includes('super'))  return ROLES.SUPER_ADMIN;
+  if (r.includes('super')) return ROLES.SUPER_ADMIN;
   if (r.includes('it_admin') || r.includes('itadmin')) return ROLES.IT_ADMIN;
   if (r === 'admin' || r === 'administrator' || r === 'it') return ROLES.IT_ADMIN;
-  if (r.includes('zoom'))   return ROLES.ZOOM_REQUESTER;
+  if (r.includes('zoom')) return ROLES.ZOOM_REQUESTER;
   if (r.includes('trainee') || r.includes('intern') || r.includes('staff')) return ROLES.TRAINEE;
   return r;
 }
@@ -106,7 +106,7 @@ export const AuthProvider = ({ children }) => {
 
       const exists = USERS.some(
         u => u.username.toLowerCase() === targetUsername.toLowerCase() ||
-             u.email.toLowerCase() === targetEmail
+          u.email.toLowerCase() === targetEmail
       );
       if (exists) {
         return { success: false, error: 'Username or email already exists.' };

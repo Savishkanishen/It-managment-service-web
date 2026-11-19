@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 const AVATAR_COLORS = ['#36312E', '#C2A78A', '#7A6B5C', '#546355', '#91533B', '#485C69'];
-function getAvatarColor(id) { return AVATAR_COLORS[id.charCodeAt(id.length-1) % AVATAR_COLORS.length]; }
+function getAvatarColor(id) { return AVATAR_COLORS[id.charCodeAt(id.length - 1) % AVATAR_COLORS.length]; }
 
 function NavSection({ label, children }) {
   return (
@@ -41,16 +41,21 @@ export default function Sidebar() {
 
   const role = currentUser.role;
   const pendingReassignments = tickets.filter(t => t.reassignmentRequest?.status === 'Pending').length;
-  const openTickets = tickets.filter(t => ['New','Assigned','In Progress','Pending Parts'].includes(t.status)).length;
+  const openTickets = tickets.filter(t => ['New', 'Assigned', 'In Progress', 'Pending Parts'].includes(t.status)).length;
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
   const isSuperAdmin = role === ROLES.SUPER_ADMIN;
   const isITAdmin = role === ROLES.IT_ADMIN;
+  const isITOfficer = role === ROLES.IT_OFFICER;
   const isTrainee = role === ROLES.TRAINEE;
   const isZoom = role === ROLES.ZOOM_REQUESTER;
 
-  const dashPath = isSuperAdmin ? '/dashboard/super-admin' : isITAdmin ? '/dashboard/it-admin' : isTrainee ? '/dashboard/trainee' : '/dashboard/zoom';
+  const dashPath = isSuperAdmin ? '/dashboard/super-admin'
+    : isITAdmin ? '/dashboard/it-admin'
+      : isITOfficer ? '/dashboard/tasks'
+        : isTrainee ? '/dashboard/trainee'
+          : '/dashboard/zoom';
 
   return (
     <nav className="sidebar">
@@ -83,8 +88,41 @@ export default function Sidebar() {
           </NavSection>
         )}
 
+        {/* IT Officer Navigation */}
+        {isITOfficer && (
+          <>
+            <NavSection label="Task Operations">
+              <NavItem to="/dashboard/tasks" icon={Star} label="Task Dashboard" />
+              <NavItem to="/tasks/board" icon={Kanban} label="Kanban Board" />
+              <NavItem to="/tasks/list" icon={ListTodo} label="Task List" />
+              <NavItem to="/tasks/calendar" icon={Calendar} label="Calendar" />
+              <NavItem to="/tasks/mine" icon={UserCheck} label="My Tasks" />
+            </NavSection>
+
+            <NavSection label="Service Desk">
+              <NavItem to="/helpdesk" icon={Ticket} label="Helpdesk Tickets" badge={openTickets > 0 ? openTickets : null} />
+              <NavItem to="/helpdesk/new" icon={Ticket} label="New Ticket" />
+            </NavSection>
+
+            <NavSection label="Inventory">
+              <NavItem to="/stock" icon={Package} label="IT Stock & Cables" />
+            </NavSection>
+
+            <NavSection label="Zoom Support">
+              <NavItem to="/zoom/new" icon={Video} label="New Zoom Request" />
+              <NavItem to="/zoom" icon={ListTodo} label="Meeting Requests" />
+            </NavSection>
+
+            {pendingReassignments > 0 && (
+              <NavSection label="Alerts">
+                <NavItem to="/helpdesk" icon={Bell} label="Reassignment Requests" badge={pendingReassignments} />
+              </NavSection>
+            )}
+          </>
+        )}
+
         {/* IT Staff (Super Admin + IT Admin + Trainee) */}
-        {!isZoom && (
+        {!isZoom && !isITOfficer && (
           <>
             <NavSection label="Asset Management">
               <NavItem to="/assets" icon={Monitor} label="PC / Laptop / Printers" />
@@ -98,6 +136,7 @@ export default function Sidebar() {
 
             <NavSection label="Specialized Services">
               <NavItem to="/zoom" icon={Video} label="Zoom Support" />
+              <NavItem to="/zoom/new" icon={Video} label="New Zoom Request" />
               {(isSuperAdmin || isITAdmin) && (
                 <NavItem to="/publications" icon={Globe} label="Web Publications" />
               )}
@@ -136,12 +175,12 @@ export default function Sidebar() {
       <div className="sidebar-footer">
         <div className="sidebar-user" onClick={handleLogout} title="Click to logout">
           <div className="sidebar-avatar" style={{ background: getAvatarColor(currentUser.id) }}>
-            {currentUser.avatar?.slice(0,2) || currentUser.name.slice(0,2).toUpperCase()}
+            {currentUser.avatar?.slice(0, 2) || currentUser.name.slice(0, 2).toUpperCase()}
           </div>
           <div className="sidebar-user-info">
             <div className="sidebar-user-name">{currentUser.name}</div>
             <div className="sidebar-user-role">
-              {role === ROLES.SUPER_ADMIN ? 'Super Administrator' : role === ROLES.IT_ADMIN ? 'IT Administrator' : role === ROLES.TRAINEE ? 'IT Trainee / Intern' : 'Zoom Requester'}
+              {role === ROLES.SUPER_ADMIN ? 'Super Administrator' : role === ROLES.IT_ADMIN ? 'IT Administrator' : role === ROLES.IT_OFFICER ? 'IT Officer' : role === ROLES.TRAINEE ? 'IT Trainee / Intern' : 'Zoom Requester'}
             </div>
           </div>
           <LogOut size={15} color="rgba(255,255,255,0.35)" />

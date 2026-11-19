@@ -24,8 +24,8 @@ export default function TaskBoardPage() {
   const { addToast } = useNotifications();
   const [pendingDragTask, setPendingDragTask] = useState(null);
 
-  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role);
-  const visibleTasks = isAdmin ? tasks : tasks.filter(t => isTaskAssignedToUser(t, currentUser));
+  const canManageTasks = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser.role);
+  const visibleTasks = canManageTasks ? tasks : tasks.filter(t => isTaskAssignedToUser(t, currentUser));
 
   const grouped = COLUMNS.reduce((acc, col) => {
     acc[col.id] = visibleTasks.filter(t => t.status === col.id);
@@ -67,7 +67,7 @@ export default function TaskBoardPage() {
         </div>
       </div>
 
-      {!isAdmin && (
+      {!canManageTasks && (
         <div style={{
           display: 'flex',
           alignItems: 'center',

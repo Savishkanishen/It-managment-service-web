@@ -10,11 +10,12 @@ import { Users, Shield, ToggleLeft, ToggleRight, Edit3, Search, UserPlus, Lock, 
 const ROLE_OPTIONS = [
   { value: ROLES.SUPER_ADMIN, label: 'Super Administrator' },
   { value: ROLES.IT_ADMIN, label: 'IT Administrator' },
+  { value: ROLES.IT_OFFICER, label: 'IT Officer' },
   { value: ROLES.TRAINEE, label: 'Trainee / Intern' },
   { value: ROLES.ZOOM_REQUESTER, label: 'Zoom Requester (External)' },
 ];
 
-const AVATAR_COLORS = ['#36312E', '#C2A78A', '#7A6B5C', '#546355', '#91533B', '#485C69'];
+const AVATAR_COLORS = ['#190019', '#2B124C', '#522B5B', '#854F6C', '#6E3C56', '#431C3D'];
 const getAvatarColor = (id = '') => {
   const str = String(id);
   const code = str.length > 0 ? str.charCodeAt(str.length - 1) : 0;
@@ -54,7 +55,7 @@ export default function UserManagementPage() {
 
   const handleRoleChange = () => {
     updateUserRole(roleModal.id, newRole, currentUser);
-    addToast('success', 'Role Updated', `${roleModal.name}'s role changed to ${ROLE_OPTIONS.find(r=>r.value===newRole)?.label}`);
+    addToast('success', 'Role Updated', `${roleModal.name}'s role changed to ${ROLE_OPTIONS.find(r => r.value === newRole)?.label}`);
     setRoleModal(null);
   };
 
@@ -146,9 +147,9 @@ export default function UserManagementPage() {
           <p>Dynamic Role-Based Access Control — IT Admin & Super Admin Provisioning</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', background:'rgba(8,145,178,0.08)', borderRadius:'var(--radius-md)', border:'1px solid rgba(8,145,178,0.2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'rgba(8,145,178,0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(8,145,178,0.2)' }}>
             <Shield size={15} color="var(--teal-500)" />
-            <span style={{ fontSize:'0.8rem', fontWeight:600, color:'var(--teal-700)' }}>Administrator Control</span>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--teal-700)' }}>Administrator Control</span>
           </div>
           <button className="btn btn-primary" onClick={openCreateModal} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <UserPlus size={16} /> Add New User
@@ -157,12 +158,12 @@ export default function UserManagementPage() {
       </div>
 
       {/* Role Counts */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>
         {ROLE_OPTIONS.map(r => {
           const count = users.filter(u => u.role === r.value).length;
           return (
-            <div key={r.value} className="stat-card" style={{ '--stat-accent':'var(--teal-500)' }}>
-              <div className="stat-icon" style={{ background:'rgba(6,182,212,0.1)' }}><Users size={20} color="var(--teal-500)" /></div>
+            <div key={r.value} className="stat-card" style={{ '--stat-accent': 'var(--teal-500)' }}>
+              <div className="stat-icon" style={{ background: 'rgba(6,182,212,0.1)' }}><Users size={20} color="var(--teal-500)" /></div>
               <div className="stat-content"><div className="stat-label">{r.label}</div><div className="stat-value">{count}</div></div>
             </div>
           );
@@ -172,11 +173,11 @@ export default function UserManagementPage() {
       {/* Users Table */}
       <div className="table-container">
         <div className="table-toolbar">
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Search size={15} color="var(--gray-400)" />
-            <input className="filter-input" placeholder="Search users by name, username, division..." value={search} onChange={e=>setSearch(e.target.value)} style={{ width:320 }} />
+            <input className="filter-input" placeholder="Search users by name, username, division..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: 320 }} />
           </div>
-          <span style={{ fontSize:'0.78rem', color:'var(--gray-400)' }}>{filtered.length} of {users.length} users</span>
+          <span style={{ fontSize: '0.78rem', color: 'var(--gray-400)' }}>{filtered.length} of {users.length} users</span>
         </div>
         <div className="table-scroll">
           <table>
@@ -187,20 +188,20 @@ export default function UserManagementPage() {
               {filtered.map(u => (
                 <tr key={u.id}>
                   <td>
-                    <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                      <div className="avatar" style={{ background: getAvatarColor(u.id) }}>{u.avatar || u.name.slice(0,2).toUpperCase()}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div className="avatar" style={{ background: getAvatarColor(u.id) }}>{u.avatar || u.name.slice(0, 2).toUpperCase()}</div>
                       <div>
-                        <div style={{ fontWeight:600, fontSize:'0.875rem' }}>{u.name}</div>
-                        <div style={{ fontSize:'0.72rem', color:'var(--gray-400)' }}>{u.email}</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{u.name}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--gray-400)' }}>{u.email}</div>
                       </div>
                     </div>
                   </td>
-                  <td><span style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'0.8rem' }}>{u.username}</span></td>
-                  <td style={{ fontSize:'0.82rem', color:'var(--gray-600)' }}>{u.division}</td>
+                  <td><span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '0.8rem' }}>{u.username}</span></td>
+                  <td style={{ fontSize: '0.82rem', color: 'var(--gray-600)' }}>{u.division}</td>
                   <td><RoleBadge role={u.role} /></td>
                   <td><Badge status={u.active ? 'Active' : 'Inactive'} /></td>
                   <td>
-                    <div style={{ display:'flex', gap:8 }}>
+                    <div style={{ display: 'flex', gap: 8 }}>
                       {u.id !== currentUser.id && (
                         <>
                           <button className="btn btn-secondary btn-sm" onClick={() => { setRoleModal(u); setNewRole(u.role); }} title="Change Role">
@@ -216,7 +217,7 @@ export default function UserManagementPage() {
                           </button>
                         </>
                       )}
-                      {u.id === currentUser.id && <span style={{ fontSize:'0.78rem', color:'var(--gray-400)' }}>Current user</span>}
+                      {u.id === currentUser.id && <span style={{ fontSize: '0.78rem', color: 'var(--gray-400)' }}>Current user</span>}
                     </div>
                   </td>
                 </tr>
@@ -331,7 +332,7 @@ export default function UserManagementPage() {
           </div>
 
           {createForm.role === ROLES.SUPER_ADMIN && (
-            <div className="alert-card alert-card-error" style={{ borderRadius:'var(--radius-md)', marginTop: 12 }}>
+            <div className="alert-card alert-card-error" style={{ borderRadius: 'var(--radius-md)', marginTop: 12 }}>
               <div className="alert-title">⚠ Granting Super Admin Access</div>
               <div className="alert-message">This user will have unrestricted administrative access across the entire system, including audit logs and user role management.</div>
             </div>
@@ -354,19 +355,19 @@ export default function UserManagementPage() {
       >
         {roleModal && (
           <div>
-            <div style={{ display:'flex', alignItems:'center', gap:12, padding:'14px', background:'var(--gray-50)', borderRadius:'var(--radius-md)', marginBottom:16 }}>
-              <div className="avatar avatar-lg" style={{ background: getAvatarColor(roleModal.id) }}>{roleModal.avatar || roleModal.name.slice(0,2)}</div>
-              <div><div style={{ fontWeight:700 }}>{roleModal.name}</div><div style={{ fontSize:'0.78rem', color:'var(--gray-500)' }}>{roleModal.email}</div></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px', background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', marginBottom: 16 }}>
+              <div className="avatar avatar-lg" style={{ background: getAvatarColor(roleModal.id) }}>{roleModal.avatar || roleModal.name.slice(0, 2)}</div>
+              <div><div style={{ fontWeight: 700 }}>{roleModal.name}</div><div style={{ fontSize: '0.78rem', color: 'var(--gray-500)' }}>{roleModal.email}</div></div>
             </div>
             <div className="form-group">
               <label className="form-label">New Role <span className="required">*</span></label>
-              <select className="form-select" value={newRole} onChange={e=>setNewRole(e.target.value)}>
+              <select className="form-select" value={newRole} onChange={e => setNewRole(e.target.value)}>
                 {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
               <div className="form-hint">This immediately changes the user's access level across the entire system.</div>
             </div>
             {newRole === ROLES.SUPER_ADMIN && (
-              <div className="alert-card alert-card-error" style={{ borderRadius:'var(--radius-md)' }}>
+              <div className="alert-card alert-card-error" style={{ borderRadius: 'var(--radius-md)' }}>
                 <div className="alert-title">⚠ Granting Super Admin Access</div>
                 <div className="alert-message">This user will have unrestricted access to all modules including audit logs and privilege management.</div>
               </div>
