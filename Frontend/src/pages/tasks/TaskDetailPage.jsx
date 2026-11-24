@@ -49,11 +49,17 @@ export default function TaskDetailPage() {
   };
 
   const handleStatusChange = (status) => {
-    if (status === 'On Hold' || status === 'Hold') {
+    if (status === 'On Hold' || status === 'Hold' || status === 'Pending') {
       setShowHoldModal(true);
     } else {
       updateTaskStatus(task.id, status, '', currentUser);
-      addToast('success', 'Status Updated', `Task moved to "${status}"`);
+      if (status === 'Completed') {
+        addToast('success', 'Task Completed', `Task "${task.title}" marked Completed and archived in database.`);
+      } else if (status === 'Cancelled') {
+        addToast('warning', 'Task Cancelled', `Task "${task.title}" has been cancelled.`);
+      } else {
+        addToast('success', 'Status Updated', `Task moved to "${status}"`);
+      }
     }
   };
 
@@ -90,12 +96,13 @@ export default function TaskDetailPage() {
         {canEditStatus && (
           <div className="detail-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--gray-600)' }}>Change Status:</span>
-            <select className="filter-input" value={task.status} onChange={e => handleStatusChange(e.target.value)}>
+            <select className="filter-input" value={task.status === 'On Hold' ? 'Pending' : task.status} onChange={e => handleStatusChange(e.target.value)}>
               <option value="To Do">To Do</option>
               <option value="In Progress">In Progress</option>
               <option value="Ongoing">Ongoing</option>
-              <option value="On Hold">On Hold</option>
+              <option value="Pending">Pending (On Hold)</option>
               <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
             </select>
           </div>
         )}

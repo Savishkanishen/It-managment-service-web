@@ -23,24 +23,39 @@ export default function TaskListPage() {
   const [holdModalTask, setHoldModalTask] = useState(null);
   const [form, setForm] = useState({ title: '', description: '', priority: 'Medium', status: 'To Do', startDate: '', dueDate: '', assignees: [], project: '' });
 
+  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role) || currentUser.username?.toLowerCase() === 'admin';
   const canManageTasks = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser.role);
 
-  // Privacy Rule: Trainees only see tasks assigned to them. Admins and IT Officers see all tasks to manage and assign.
-  const visibleTasks = canManageTasks ? tasks : tasks.filter(t => isTaskAssignedToUser(t, currentUser));
+  // Privacy & Lifecycle Rule:
+  // Non-admins (Trainees, Officers) only see active tasks assigned to them (Completed tasks are hidden from their workspace).
+  // Admins can see all tasks including Completed and Cancelled archives.
+  const visibleTasks = isAdmin
+    ? tasks
+    : tasks.filter(t => isTaskAssignedToUser(t, currentUser) && t.status !== 'Completed' && t.status !== 'Cancelled');
 
   const filtered = visibleTasks.filter(t => {
     const matchSearch = !search || [t.id, t.title, t.project].some(v => v?.toLowerCase().includes(search.toLowerCase()));
-    const matchStatus = statusFilter === 'All' || t.status === statusFilter;
+    const matchStatus = statusFilter === 'All'
+      ? true
+      : statusFilter === 'Pending'
+        ? (t.status === 'Pending' || t.status === 'On Hold' || t.status === 'Hold')
+        : t.status === statusFilter;
     const matchPri = priorityFilter === 'All' || t.priority === priorityFilter;
     return matchSearch && matchStatus && matchPri;
   });
 
   const handleStatusChange = (task, newStatus) => {
-    if (newStatus === 'On Hold' || newStatus === 'Hold') {
+    if (newStatus === 'On Hold' || newStatus === 'Hold' || newStatus === 'Pending') {
       setHoldModalTask(task);
     } else {
       updateTaskStatus(task.id, newStatus, '', currentUser);
-      addToast('success', 'Status Updated', `Task "${task.title}" updated to ${newStatus}`);
+      if (newStatus === 'Completed') {
+        addToast('success', 'Task Completed', `Task "${task.title}" marked Completed and archived in database.`);
+      } else if (newStatus === 'Cancelled') {
+        addToast('warning', 'Task Cancelled', `Task "${task.title}" marked Cancelled.`);
+      } else {
+        addToast('success', 'Status Updated', `Task "${task.title}" updated to ${newStatus}`);
+      }
     }
   };
 
@@ -82,14 +97,15 @@ export default function TaskListPage() {
           <select
             className="filter-input"
             style={{ padding: '3px 6px', fontSize: '0.75rem', fontWeight: 600 }}
-            value={row.status}
+            value={row.status === 'On Hold' ? 'Pending' : row.status}
             onChange={(e) => handleStatusChange(row, e.target.value)}
           >
             <option value="To Do">To Do</option>
             <option value="In Progress">In Progress</option>
             <option value="Ongoing">Ongoing</option>
-            <option value="On Hold">On Hold</option>
+            <option value="Pending">Pending (On Hold)</option>
             <option value="Completed">Completed</option>
+            <option value="Cancelled">Cancelled</option>
           </select>
         </div>
       )
@@ -152,12 +168,13 @@ export default function TaskListPage() {
           </div>
           <div className="table-filters">
             <select className="filter-input" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-              <option value="All">All Status</option>
+              <option value="All">{isAdmin ? 'All Status (Active & Completed)' : 'All Active Tasks'}</option>
               <option value="To Do">To Do</option>
               <option value="In Progress">In Progress</option>
               <option value="Ongoing">Ongoing</option>
-              <option value="On Hold">On Hold</option>
-              <option value="Completed">Completed</option>
+              <option value="Pending">Pending / On Hold</option>
+              {isAdmin && <option value="Completed">✓ Completed (Admin View)</option>}
+              {isAdmin && <option value="Cancelled">Cancelled (Admin View)</option>}
             </select>
             <select className="filter-input" value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)}>
               <option value="All">All Priorities</option>

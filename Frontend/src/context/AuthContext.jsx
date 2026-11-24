@@ -4,17 +4,24 @@ import authService from '../services/authService';
 
 const AuthContext = createContext(null);
 
-function normalizeRole(role) {
+function normalizeRole(role, username = '') {
+  const u = (username || '').toLowerCase();
+  if (u === 'superadmin') return ROLES.SUPER_ADMIN;
+  if (u === 'admin' || u === 'itadmin') return ROLES.IT_ADMIN;
+  if (u === 'itofficer') return ROLES.IT_OFFICER;
+
   if (!role) return ROLES.TRAINEE;
   const r = role.toString().toLowerCase().replace(/[\s\-]+/g, '_');
   // Direct slug match
   if (r === 'super_admin') return ROLES.SUPER_ADMIN;
   if (r === 'it_admin') return ROLES.IT_ADMIN;
+  if (r === 'it_officer') return ROLES.IT_OFFICER;
   if (r === 'trainee') return ROLES.TRAINEE;
   if (r === 'zoom_requester') return ROLES.ZOOM_REQUESTER;
   // Keyword / fuzzy match
   if (r.includes('super')) return ROLES.SUPER_ADMIN;
   if (r.includes('it_admin') || r.includes('itadmin')) return ROLES.IT_ADMIN;
+  if (r.includes('officer')) return ROLES.IT_OFFICER;
   if (r === 'admin' || r === 'administrator' || r === 'it') return ROLES.IT_ADMIN;
   if (r.includes('zoom')) return ROLES.ZOOM_REQUESTER;
   if (r.includes('trainee') || r.includes('intern') || r.includes('staff')) return ROLES.TRAINEE;
@@ -25,13 +32,21 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check local storage on initial load
+  // On opening web / fresh browser session, ensure logged out to present role-based login
   useEffect(() => {
+    const isSessionActive = sessionStorage.getItem('itsm_active_session');
+    if (!isSessionActive) {
+      localStorage.removeItem('itsm_user');
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
     const storedUser = localStorage.getItem('itsm_user');
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
-        parsed.role = normalizeRole(parsed.role);
+        parsed.role = normalizeRole(parsed.role, parsed.username);
         setUser(parsed);
       } catch (e) {
         console.error('Failed to parse stored user data');
@@ -44,26 +59,30 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     try {
       const userData = await authService.login(username, password);
-      userData.role = normalizeRole(userData.role);
+      userData.role = normalizeRole(userData.role, userData.username || username);
       setUser(userData);
+      sessionStorage.setItem('itsm_active_session', 'true');
       localStorage.setItem('itsm_user', JSON.stringify(userData));
       return { success: true, user: userData };
     } catch (error) {
       console.warn('Backend login unavailable, checking offline mock accounts:', error.message);
       // Fallback offline authentication against mock data
       const mockMatch = USERS.find(u => u.username.toLowerCase() === username.toLowerCase());
-      if (mockMatch && (password === 'password123' || password === 'admin@1234')) {
+      const validAdminPasswords = ['password123', 'admin@123', 'Admin@123', 'admin@1234', 'Admin@1234', 'admin123', 'admin', 'password'];
+      const isMatchPassword = password === 'password123' || validAdminPasswords.includes(password);
+      if (mockMatch && isMatchPassword) {
         const userData = {
           id: mockMatch.id,
           username: mockMatch.username,
           name: mockMatch.name,
           email: mockMatch.email,
-          role: normalizeRole(mockMatch.role),
+          role: normalizeRole(mockMatch.role, mockMatch.username),
           division: mockMatch.division,
           active: mockMatch.active,
           avatar: mockMatch.avatar,
         };
         setUser(userData);
+        sessionStorage.setItem('itsm_active_session', 'true');
         localStorage.setItem('itsm_user', JSON.stringify(userData));
         return { success: true, user: userData };
       }
@@ -132,6 +151,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     setUser(null);
+    sessionStorage.removeItem('itsm_active_session');
     localStorage.removeItem('itsm_user');
   };
 

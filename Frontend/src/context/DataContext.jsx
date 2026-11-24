@@ -257,18 +257,22 @@ export function DataProvider({ children }) {
   };
 
   // --- TASKS ---
-  const updateTaskStatus = (id, status, holdReason = '', user = null) => {
+  const updateTaskStatus = async (id, status, holdReason = '', user = null) => {
+    const canonicalStatus = status === 'Pending' ? 'On Hold' : status;
     setTasks(prev => prev.map(t => (t.id === id || t.taskNumber === id) ? {
       ...t,
-      status,
-      holdReason: (status === 'On Hold' || status === 'Hold') ? holdReason : (t.holdReason || ''),
+      status: canonicalStatus,
+      holdReason: (canonicalStatus === 'On Hold' || canonicalStatus === 'Hold') ? holdReason : (t.holdReason || ''),
       updatedAt: new Date().toISOString()
     } : t));
-    const logDesc = (status === 'On Hold' || status === 'Hold') && holdReason
-      ? `Changed task status to "${status}" (Reason: ${holdReason})`
-      : `Changed task status to "${status}"`;
+    const logDesc = (canonicalStatus === 'On Hold' || canonicalStatus === 'Hold') && holdReason
+      ? `Changed task status to "${canonicalStatus}" (Reason: ${holdReason})`
+      : `Changed task status to "${canonicalStatus}"`;
     addAuditLog(user?.id, user?.username || user?.name, 'STATUS_CHANGE', 'Task', id, logDesc, 'Task Management');
-    apiCall(`/tasks/${id}/status`, 'PATCH', { status, holdReason });
+    const updated = await apiCall(`/tasks/${id}/status`, 'PATCH', { status: canonicalStatus, holdReason });
+    if (updated) {
+      setTasks(prev => prev.map(t => (t.id === id || t.taskNumber === id) ? { ...t, ...updated } : t));
+    }
   };
 
   const updateSubtaskStatus = (taskId, subtaskId, status, user) => {

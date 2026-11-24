@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { ROUTES } from '../../constants/routes';
 import AlertBanner from '../../components/common/AlertBanner';
-import { Eye, EyeOff, Lock, User, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Lock, User, ArrowRight, Shield } from 'lucide-react';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setError('');
     setLoading(true);
 
@@ -56,7 +56,9 @@ export default function LoginPage() {
         {/* Login Card */}
         <div className="login-card">
           <h2 className="login-card-title">Official Portal Sign In</h2>
-          <p className="login-card-subtitle">Enter your authorized credentials to access the ITSM platform</p>
+          <p className="login-card-subtitle">
+            Enter your authorized credentials to access the platform. Only IT Administrators can create accounts.
+          </p>
 
           <AlertBanner type="error" message={error} />
 
@@ -127,8 +129,9 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="login-footer-notice">
-            Authorized government personnel only. Account credentials and role access are provisioned by the IT Department.
+          <div className="login-footer-notice" style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+            <Shield size={14} color="var(--slate-700)" style={{ flexShrink: 0 }} />
+            <span>Authorized personnel only. Accounts are strictly provisioned by IT Administrators via the IT Admin Dashboard.</span>
           </div>
 
           <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--af-655-muted)', marginTop: '20px', marginBottom: 0 }}>

@@ -23,33 +23,55 @@ function NavSection({ label, children }) {
 }
 
 function NavItem({ to, icon: Icon, label, badge }) {
+  const hasBadge = badge !== null && badge !== undefined && badge !== 0 && badge !== '0';
   return (
     <NavLink to={to} className={({ isActive }) => `sidebar-item${isActive ? ' active' : ''}`}>
       <span className="sidebar-item-icon"><Icon size={18} /></span>
       <span style={{ flex: 1 }}>{label}</span>
-      {badge ? <span className="sidebar-badge">{badge}</span> : null}
+      {hasBadge ? <span className="sidebar-badge">{badge}</span> : null}
     </NavLink>
   );
 }
 
 export default function Sidebar() {
   const { currentUser, logout } = useAuth();
-  const { tickets } = useData();
+  const { tickets, zoomRequests = [] } = useData();
   const navigate = useNavigate();
 
   if (!currentUser) return null;
 
   const role = currentUser.role;
-  const pendingReassignments = tickets.filter(t => t.reassignmentRequest?.status === 'Pending').length;
-  const openTickets = tickets.filter(t => ['New', 'Assigned', 'In Progress', 'Pending Parts'].includes(t.status)).length;
-
-  const handleLogout = () => { logout(); navigate('/login'); };
-
   const isSuperAdmin = role === ROLES.SUPER_ADMIN;
   const isITAdmin = role === ROLES.IT_ADMIN;
   const isITOfficer = role === ROLES.IT_OFFICER;
   const isTrainee = role === ROLES.TRAINEE;
   const isZoom = role === ROLES.ZOOM_REQUESTER;
+
+  // Pending ticket reassignment requests
+  const pendingReassignments = tickets.filter(t => t.reassignmentRequest?.status === 'Pending').length;
+
+  // Pending Zoom meeting support requests
+  const pendingZoomRequests = zoomRequests.filter(z => z.status === 'Pending').length;
+  const myPendingZoomRequests = zoomRequests.filter(z =>
+    (String(z.requestedBy || '').toLowerCase() === String(currentUser.id || '').toLowerCase() ||
+     String(z.requestedBy || '').toLowerCase() === String(currentUser.username || '').toLowerCase()) &&
+    z.status === 'Pending'
+  ).length;
+
+  // Helpdesk tickets count:
+  // For Trainees: only tickets assigned to them (if 0, no notification badge)
+  // For Admins/Officers: open tickets (if 0, no notification badge)
+  const myAssignedTickets = tickets.filter(t =>
+    (String(t.assignedTo || '').toLowerCase() === String(currentUser.id || '').toLowerCase() ||
+     String(t.assignedTo || '').toLowerCase() === String(currentUser.username || '').toLowerCase()) &&
+    ['New', 'Assigned', 'In Progress', 'Pending Parts'].includes(t.status)
+  ).length;
+
+  const systemOpenTickets = tickets.filter(t => ['New', 'Assigned', 'In Progress', 'Pending Parts'].includes(t.status)).length;
+  const activeHelpTicketsCount = isTrainee ? myAssignedTickets : systemOpenTickets;
+  const helpdeskBadge = activeHelpTicketsCount > 0 ? activeHelpTicketsCount : null;
+
+  const handleLogout = () => { logout(); navigate('/login'); };
 
   const dashPath = isSuperAdmin ? '/dashboard/super-admin'
     : isITAdmin ? '/dashboard/it-admin'
@@ -84,7 +106,7 @@ export default function Sidebar() {
         {isZoom && (
           <NavSection label="Zoom Support">
             <NavItem to="/zoom/new" icon={Video} label="New Zoom Request" />
-            <NavItem to="/zoom" icon={ListTodo} label="My Requests" />
+            <NavItem to="/zoom" icon={ListTodo} label="My Requests" badge={myPendingZoomRequests > 0 ? myPendingZoomRequests : null} />
           </NavSection>
         )}
 
@@ -100,7 +122,7 @@ export default function Sidebar() {
             </NavSection>
 
             <NavSection label="Service Desk">
-              <NavItem to="/helpdesk" icon={Ticket} label="Helpdesk Tickets" badge={openTickets > 0 ? openTickets : null} />
+              <NavItem to="/helpdesk" icon={Ticket} label="Helpdesk Tickets" badge={helpdeskBadge} />
               <NavItem to="/helpdesk/new" icon={Ticket} label="New Ticket" />
             </NavSection>
 
@@ -109,12 +131,11 @@ export default function Sidebar() {
             </NavSection>
 
             <NavSection label="Zoom Support">
-              <NavItem to="/zoom/new" icon={Video} label="New Zoom Request" />
-              <NavItem to="/zoom" icon={ListTodo} label="Meeting Requests" />
+              <NavItem to="/zoom" icon={ListTodo} label="Meeting Requests" badge={pendingZoomRequests > 0 ? pendingZoomRequests : null} />
             </NavSection>
 
             {pendingReassignments > 0 && (
-              <NavSection label="Alerts">
+              <NavSection label="Pending Requests">
                 <NavItem to="/helpdesk" icon={Bell} label="Reassignment Requests" badge={pendingReassignments} />
               </NavSection>
             )}
@@ -130,13 +151,15 @@ export default function Sidebar() {
             </NavSection>
 
             <NavSection label="Service Desk">
-              <NavItem to="/helpdesk" icon={Ticket} label="Helpdesk Tickets" badge={openTickets > 0 ? openTickets : null} />
+              <NavItem to="/helpdesk" icon={Ticket} label="Helpdesk Tickets" badge={helpdeskBadge} />
               <NavItem to="/repairs" icon={Wrench} label="External Repairs" />
             </NavSection>
 
             <NavSection label="Specialized Services">
-              <NavItem to="/zoom" icon={Video} label="Zoom Support" />
-              <NavItem to="/zoom/new" icon={Video} label="New Zoom Request" />
+              <NavItem to="/zoom" icon={Video} label="Zoom Support" badge={pendingZoomRequests > 0 ? pendingZoomRequests : null} />
+              {(isSuperAdmin || isITAdmin) && (
+                <NavItem to="/zoom/new" icon={Video} label="New Zoom Request" />
+              )}
               {(isSuperAdmin || isITAdmin) && (
                 <NavItem to="/publications" icon={Globe} label="Web Publications" />
               )}
@@ -158,12 +181,12 @@ export default function Sidebar() {
 
             {(isSuperAdmin || isITAdmin) && (
               <NavSection label="Administration">
-                <NavItem to="/users" icon={Users} label="User Management" badge={pendingReassignments > 0 ? pendingReassignments : null} />
+                <NavItem to="/users" icon={Users} label="User Management" />
               </NavSection>
             )}
 
-            {isITAdmin && pendingReassignments > 0 && (
-              <NavSection label="Alerts">
+            {(isSuperAdmin || isITAdmin) && pendingReassignments > 0 && (
+              <NavSection label="Pending Requests">
                 <NavItem to="/helpdesk" icon={Bell} label="Reassignment Requests" badge={pendingReassignments} />
               </NavSection>
             )}

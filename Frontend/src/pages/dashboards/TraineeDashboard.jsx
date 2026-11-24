@@ -24,15 +24,21 @@ export default function TraineeDashboard() {
     String(uid).toLowerCase() === String(currentUser?.username || '').toLowerCase()
   );
   const myTickets = tickets.filter(t => isMatchUser(t.assignedTo) && ['New','Assigned','In Progress','Pending Parts'].includes(t.status));
-  const myTasks = tasks.filter(t => (t.assignees || []).some(isMatchUser));
+  const myTasks = tasks.filter(t => (t.assignees || []).some(isMatchUser) && t.status !== 'Completed' && t.status !== 'Cancelled');
   const resolvedCount = tickets.filter(t => isMatchUser(t.assignedTo) && ['Resolved','Closed'].includes(t.status)).length;
 
   const handleTaskStatusChange = (task, newStatus) => {
-    if (newStatus === 'On Hold' || newStatus === 'Hold') {
+    if (newStatus === 'On Hold' || newStatus === 'Hold' || newStatus === 'Pending') {
       setHoldModalTask(task);
     } else {
       updateTaskStatus(task.id, newStatus, '', currentUser);
-      addToast('success', 'Task Status Updated', `Task "${task.title}" updated to ${newStatus}`);
+      if (newStatus === 'Completed') {
+        addToast('success', 'Task Completed', `Task "${task.title}" marked Completed and archived in database.`);
+      } else if (newStatus === 'Cancelled') {
+        addToast('warning', 'Task Cancelled', `Task "${task.title}" marked Cancelled.`);
+      } else {
+        addToast('success', 'Task Status Updated', `Task "${task.title}" updated to ${newStatus}`);
+      }
     }
   };
 
@@ -183,14 +189,15 @@ export default function TraineeDashboard() {
                       <select
                         className="filter-input"
                         style={{ padding: '4px 8px', fontSize: '0.78rem' }}
-                        value={task.status}
+                        value={task.status === 'On Hold' ? 'Pending' : task.status}
                         onChange={(e) => handleTaskStatusChange(task, e.target.value)}
                       >
                         <option value="To Do">To Do</option>
                         <option value="In Progress">In Progress</option>
                         <option value="Ongoing">Ongoing</option>
-                        <option value="On Hold">On Hold</option>
+                        <option value="Pending">Pending (On Hold)</option>
                         <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
                       </select>
                     </div>
 

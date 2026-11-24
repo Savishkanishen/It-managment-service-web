@@ -40,7 +40,7 @@ class AuthService {
       throw error;
     }
 
-    const passwordCheck = await comparePassword(password, user.password_hash);
+    const passwordCheck = await comparePassword(password, user.password_hash, user.username);
     if (!passwordCheck.matches) {
       const error = new Error('Invalid username or password');
       error.statusCode = 401;

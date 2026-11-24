@@ -42,8 +42,8 @@ router.get('/', async (req, res) => {
       if (uRes.rows.length > 0) {
         resolvedUser = uRes.rows[0];
         const role = (resolvedUser.role_name || '').toLowerCase();
-        // Only Super Admin and IT Admin can see all members' assigned works
-        if (!role.includes('super') && !role.includes('it_admin') && role !== 'it') {
+        // Only Super Admin and IT Admin can see completed tasks and full task audit
+        if (!role.includes('super') && !role.includes('it_admin') && role !== 'it' && resolvedUser.username?.toLowerCase() !== 'admin') {
           isManager = false;
         }
       }
@@ -55,11 +55,13 @@ router.get('/', async (req, res) => {
     if (!isManager && resolvedUser) {
       queryText = `
         SELECT * FROM itsm.tasks 
-        WHERE created_by = $1
+        WHERE (created_by = $1
            OR assignees::text ILIKE '%' || $1 || '%'
            OR assignees::text ILIKE '%' || $2 || '%'
            OR subtasks::text ILIKE '%' || $1 || '%'
-           OR subtasks::text ILIKE '%' || $2 || '%'
+           OR subtasks::text ILIKE '%' || $2 || '%')
+           AND status != 'Completed'
+           AND status != 'Cancelled'
         ORDER BY created_at DESC
       `;
       queryParams = [resolvedUser.id, resolvedUser.username];

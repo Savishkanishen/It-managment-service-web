@@ -42,7 +42,26 @@ import AuditLogPage from '../pages/audit/AuditLogPage';
 export function ProtectedRoute({ children, allowedRoles }) {
   const { currentUser } = useAuth();
   if (!currentUser) return <Navigate to={ROUTES.LOGIN} replace />;
-  if (allowedRoles && !allowedRoles.includes(currentUser.role)) return <Navigate to={ROUTES.DASHBOARD} replace />;
+
+  if (allowedRoles) {
+    const rawRole = (currentUser.role || '').toString().toLowerCase();
+    const isSuper = rawRole === ROLES.SUPER_ADMIN || rawRole.includes('super');
+    const isITAdmin = rawRole === ROLES.IT_ADMIN || rawRole.includes('admin') || rawRole.includes('itadmin') || currentUser.username?.toLowerCase() === 'admin';
+    const isOfficer = rawRole === ROLES.IT_OFFICER || rawRole.includes('officer');
+    const isTrainee = rawRole === ROLES.TRAINEE || rawRole.includes('trainee') || rawRole.includes('intern');
+    const isZoom = rawRole === ROLES.ZOOM_REQUESTER || rawRole.includes('zoom');
+
+    const hasAccess = allowedRoles.some(r => {
+      if (r === ROLES.SUPER_ADMIN) return isSuper || isITAdmin;
+      if (r === ROLES.IT_ADMIN) return isITAdmin || isSuper;
+      if (r === ROLES.IT_OFFICER) return isOfficer || isITAdmin || isSuper;
+      if (r === ROLES.TRAINEE) return isTrainee || isITAdmin || isSuper;
+      if (r === ROLES.ZOOM_REQUESTER) return isZoom || isITAdmin || isSuper;
+      return r === rawRole;
+    });
+
+    if (!hasAccess) return <Navigate to={ROUTES.DASHBOARD} replace />;
+  }
   return children;
 }
 
@@ -52,14 +71,23 @@ export function ProtectedRoute({ children, allowedRoles }) {
 export function DashboardRedirect() {
   const { currentUser } = useAuth();
   if (!currentUser) return <Navigate to={ROUTES.LOGIN} replace />;
-  switch (currentUser.role) {
-    case ROLES.SUPER_ADMIN: return <Navigate to={ROUTES.DASHBOARD_SUPER_ADMIN} replace />;
-    case ROLES.IT_ADMIN:    return <Navigate to={ROUTES.DASHBOARD_IT_ADMIN} replace />;
-    case ROLES.IT_OFFICER:  return <Navigate to={ROUTES.DASHBOARD_TASKS} replace />;
-    case ROLES.TRAINEE:     return <Navigate to={ROUTES.DASHBOARD_TRAINEE} replace />;
-    case ROLES.ZOOM_REQUESTER: return <Navigate to={ROUTES.DASHBOARD_ZOOM} replace />;
-    default: return <Navigate to={ROUTES.LOGIN} replace />;
+
+  const rawRole = (currentUser.role || '').toString().toLowerCase();
+  const username = (currentUser.username || '').toLowerCase();
+
+  if (rawRole === ROLES.SUPER_ADMIN || rawRole.includes('super')) {
+    return <Navigate to={ROUTES.DASHBOARD_SUPER_ADMIN} replace />;
   }
+  if (rawRole === ROLES.IT_ADMIN || rawRole.includes('admin') || username === 'admin' || username === 'itadmin') {
+    return <Navigate to={ROUTES.DASHBOARD_IT_ADMIN} replace />;
+  }
+  if (rawRole === ROLES.IT_OFFICER || rawRole.includes('officer')) {
+    return <Navigate to={ROUTES.DASHBOARD_TASKS} replace />;
+  }
+  if (rawRole === ROLES.ZOOM_REQUESTER || rawRole.includes('zoom')) {
+    return <Navigate to={ROUTES.DASHBOARD_ZOOM} replace />;
+  }
+  return <Navigate to={ROUTES.DASHBOARD_TRAINEE} replace />;
 }
 
 /**
@@ -72,13 +100,13 @@ export default function AppRoutes() {
       <Route path={ROUTES.LOGIN} element={<LoginPage />} />
       <Route path={ROUTES.SIGNUP} element={<Navigate to={ROUTES.LOGIN} replace />} />
       <Route path={ROUTES.REGISTER} element={<Navigate to={ROUTES.LOGIN} replace />} />
-      <Route path={ROUTES.HOME} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+      <Route path={ROUTES.HOME} element={<Navigate to={ROUTES.LOGIN} replace />} />
 
       {/* Protected Application Workspace */}
       <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route path="dashboard" element={<DashboardRedirect />} />
-        <Route path="dashboard/super-admin" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><SuperAdminDashboard /></ProtectedRoute>} />
-        <Route path="dashboard/it-admin" element={<ProtectedRoute allowedRoles={[ROLES.IT_ADMIN]}><ITAdminDashboard /></ProtectedRoute>} />
+        <Route path="dashboard/super-admin" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.IT_ADMIN]}><SuperAdminDashboard /></ProtectedRoute>} />
+        <Route path="dashboard/it-admin" element={<ProtectedRoute allowedRoles={[ROLES.IT_ADMIN, ROLES.SUPER_ADMIN]}><ITAdminDashboard /></ProtectedRoute>} />
         <Route path="dashboard/trainee" element={<ProtectedRoute allowedRoles={[ROLES.TRAINEE]}><TraineeDashboard /></ProtectedRoute>} />
         <Route path="dashboard/tasks" element={<TaskDashboard />} />
         <Route path="dashboard/zoom" element={<ZoomRequesterDashboard />} />
@@ -97,7 +125,7 @@ export default function AppRoutes() {
 
         {/* Meetings & Publications */}
         <Route path="zoom" element={<ZoomListPage />} />
-        <Route path="zoom/new" element={<ZoomRequestPage />} />
+        <Route path="zoom/new" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.ZOOM_REQUESTER]}><ZoomRequestPage /></ProtectedRoute>} />
         <Route path="publications" element={<PublicationPage />} />
 
         {/* Task Management */}

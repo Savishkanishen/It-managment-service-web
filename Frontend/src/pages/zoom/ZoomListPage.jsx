@@ -18,7 +18,8 @@ export default function ZoomListPage() {
   const [meetingLink, setMeetingLink] = useState('');
   const [filter, setFilter] = useState('All');
 
-  const canManageZoom = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser.role);
+  const canManageZoom = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser?.role);
+  const canCreateZoom = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.ZOOM_REQUESTER].includes(currentUser?.role);
   const userList = users && users.length > 0 ? users : USERS;
   const technicians = userList.filter(u => [ROLES.IT_ADMIN, ROLES.IT_OFFICER, ROLES.TRAINEE].includes(u.role));
 
@@ -69,11 +70,13 @@ export default function ZoomListPage() {
           <h1>Zoom Support Scheduler</h1>
           <p>Manage meeting technical support requests, provision Zoom meeting links, and assign staff</p>
         </div>
-        <div className="page-header-actions">
-          <Link to="/zoom/new" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={15} /> {canManageZoom ? 'Schedule Zoom Meeting' : 'New Zoom Request'}
-          </Link>
-        </div>
+        {canCreateZoom && (
+          <div className="page-header-actions">
+            <Link to="/zoom/new" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={15} /> {canManageZoom ? 'Schedule Zoom Meeting' : 'New Zoom Request'}
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="tab-list">
@@ -92,11 +95,13 @@ export default function ZoomListPage() {
           <Video size={40} style={{ margin: '0 auto 12px', opacity: 0.3, color: 'var(--slate-700)' }} />
           <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--slate-950)' }}>No {filter !== 'All' ? filter : ''} Zoom meetings found</div>
           <div style={{ fontSize: '0.82rem', marginTop: 4 }}>Click "Schedule Zoom Meeting" to create a new session.</div>
-          <div style={{ marginTop: 16 }}>
-            <Link to="/zoom/new" className="btn btn-primary btn-sm">
-              <Plus size={14} /> Schedule Now
-            </Link>
-          </div>
+          {canCreateZoom && (
+            <div style={{ marginTop: 16 }}>
+              <Link to="/zoom/new" className="btn btn-primary btn-sm">
+                <Plus size={14} /> Schedule Now
+              </Link>
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 18 }}>

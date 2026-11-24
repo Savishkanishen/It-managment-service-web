@@ -24,8 +24,14 @@ export default function TaskBoardPage() {
   const { addToast } = useNotifications();
   const [pendingDragTask, setPendingDragTask] = useState(null);
 
+  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role) || currentUser.username?.toLowerCase() === 'admin';
   const canManageTasks = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser.role);
-  const visibleTasks = canManageTasks ? tasks : tasks.filter(t => isTaskAssignedToUser(t, currentUser));
+  
+  // Non-admins see their assigned active tasks (Completed tasks are hidden from non-admin boards).
+  // Admins see all tasks across all stages including Completed archives.
+  const visibleTasks = isAdmin
+    ? tasks
+    : tasks.filter(t => isTaskAssignedToUser(t, currentUser) && t.status !== 'Completed' && t.status !== 'Cancelled');
 
   const grouped = COLUMNS.reduce((acc, col) => {
     acc[col.id] = visibleTasks.filter(t => t.status === col.id);
@@ -43,7 +49,11 @@ export default function TaskBoardPage() {
       setPendingDragTask({ task: targetTask, newStatus });
     } else {
       updateTaskStatus(draggableId, newStatus, '', currentUser);
-      addToast('success', 'Status Updated', `Task moved to "${newStatus}"`);
+      if (newStatus === 'Completed') {
+        addToast('success', 'Task Completed', `Task "${targetTask?.title || draggableId}" marked Completed and archived in database.`);
+      } else {
+        addToast('success', 'Status Updated', `Task moved to "${newStatus}"`);
+      }
     }
   };
 

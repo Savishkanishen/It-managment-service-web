@@ -308,6 +308,7 @@ ON CONFLICT (name) DO NOTHING;
 -- 5. USERS SEED (Including student group members)
 INSERT INTO itsm.users (id, username, email, display_name, password_hash, division_id, role_id, is_active)
 VALUES
+  ('00000000-0000-0000-0000-000000000001', 'admin', 'admin@mohe.gov.mv', 'System Administrator', 'password123', '072cebb7-0d11-4569-8353-203d1610ce12', '60441f29-8089-4c9b-bb35-3b9513921398', true),
   ('ed08ee60-c54b-40f5-8273-34c5439eaa8b', 'superadmin', 'super@ministry.gov', 'Super Administrator', 'password123', '072cebb7-0d11-4569-8353-203d1610ce12', 'eb723779-f2cd-458d-bfd6-9eb89ef80d74', true),
   ('cf9ee99c-d1dc-4805-8b25-69909a366d58', 'itadmin', 'it@ministry.gov', 'IT Admin', 'password123', '072cebb7-0d11-4569-8353-203d1610ce12', '60441f29-8089-4c9b-bb35-3b9513921398', true),
   ('34729a84-291c-459c-ac51-e62d5000e01c', 'intern', 'intern@ministry.gov', 'IT Trainee', 'password123', '072cebb7-0d11-4569-8353-203d1610ce12', 'd4113ef4-4ca2-485f-8f1e-502a7dfc0d7f', true),
