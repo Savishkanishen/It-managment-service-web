@@ -11,6 +11,67 @@ import {
 const DataContext = createContext(null);
 const API_BASE = 'http://localhost:5000/api';
 
+function mergeRemoteTasks(localTasks, remoteTasks) {
+  if (!Array.isArray(remoteTasks) || remoteTasks.length === 0) return localTasks;
+  const resultMap = new Map();
+
+  localTasks.forEach(t => {
+    if (t.id) resultMap.set(t.id, t);
+    if (t.taskNumber) resultMap.set(t.taskNumber, t);
+  });
+
+  remoteTasks.forEach(rt => {
+    const key = rt.id || rt.taskNumber;
+    const local = resultMap.get(rt.id) || (rt.taskNumber ? resultMap.get(rt.taskNumber) : null);
+    if (!local) {
+      resultMap.set(key, rt);
+    } else {
+      const localCompleted = local.status === 'Completed' || local.status === 'Cancelled';
+      const remoteCompleted = rt.status === 'Completed' || rt.status === 'Cancelled';
+      if (localCompleted && !remoteCompleted) {
+        resultMap.set(local.id, { ...rt, ...local, status: local.status });
+      } else {
+        resultMap.set(local.id, { ...local, ...rt });
+      }
+    }
+  });
+
+  return Array.from(new Set(resultMap.values()));
+}
+
+function mergeRemoteZoom(localZoom, remoteZoom) {
+  let deletedIds = [];
+  try {
+    deletedIds = JSON.parse(localStorage.getItem('itsm_deleted_zoom_ids') || '[]');
+  } catch (e) {}
+
+  if (!Array.isArray(remoteZoom) || remoteZoom.length === 0) {
+    return localZoom.filter(z => !deletedIds.includes(z.id));
+  }
+
+  const resultMap = new Map();
+  localZoom.filter(z => !deletedIds.includes(z.id)).forEach(z => {
+    resultMap.set(z.id, z);
+    if (z.meetingName) resultMap.set(z.meetingName.toLowerCase(), z);
+  });
+
+  remoteZoom.forEach(rz => {
+    if (deletedIds.includes(rz.id)) return;
+    const local = resultMap.get(rz.id) || (rz.meetingName ? resultMap.get(rz.meetingName.toLowerCase()) : null);
+    if (!local) {
+      resultMap.set(rz.id, rz);
+    } else {
+      if (local.status === 'Completed' && rz.status !== 'Completed') {
+        resultMap.set(local.id, { ...rz, ...local, status: 'Completed' });
+      } else {
+        resultMap.set(local.id, { ...local, ...rz });
+      }
+    }
+  });
+
+  return Array.from(new Set(resultMap.values())).filter(z => !deletedIds.includes(z.id));
+}
+
 export function DataProvider({ children }) {
   const { notifyWorkAssignment } = useNotifications() || {};
   const [divisions, setDivisions] = useState(DIVISIONS);
@@ -19,9 +80,27 @@ export function DataProvider({ children }) {
   const [tickets, setTickets] = useState(TICKETS);
   const [repairs, setRepairs] = useState(REPAIRS);
   const [vendors, setVendors] = useState(VENDORS);
-  const [zoomRequests, setZoomRequests] = useState(ZOOM_REQUESTS);
+  const [zoomRequests, setZoomRequests] = useState(() => {
+    try {
+      const saved = localStorage.getItem('itsm_zoom_requests');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return ZOOM_REQUESTS;
+  });
   const [publications, setPublications] = useState(PUBLICATIONS);
-  const [tasks, setTasks] = useState(TASKS);
+  const [tasks, setTasks] = useState(() => {
+    try {
+      const saved = localStorage.getItem('itsm_tasks');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return TASKS;
+  });
   const [auditLogs, setAuditLogs] = useState(AUDIT_LOGS);
   const [users, setUsers] = useState(USERS);
   const [loading, setLoading] = useState(true);
@@ -35,13 +114,44 @@ export function DataProvider({ children }) {
     setDynamicAssets(assets);
   }, [assets]);
 
+  // Persist tasks and zoomRequests to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('itsm_tasks', JSON.stringify(tasks));
+    } catch (e) {}
+  }, [tasks]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('itsm_zoom_requests', JSON.stringify(zoomRequests));
+    } catch (e) {}
+  }, [zoomRequests]);
+
+  // Cross-tab storage synchronization
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'itsm_tasks' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setTasks(parsed);
+        } catch (err) {}
+      } else if (e.key === 'itsm_zoom_requests' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setZoomRequests(parsed);
+        } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   // Initial Data Fetch
   const fetchAllData = useCallback(async () => {
     setLoading(true);
     const endpoints = [
       { key: 'divisions', url: '/divisions', setter: (data) => {
         if (Array.isArray(data) && data.length > 0) {
-          // If objects, extract names or keep as is
           setDivisions(data.map(d => typeof d === 'object' ? d.name : d));
         }
       }},
@@ -64,13 +174,17 @@ export function DataProvider({ children }) {
         if (Array.isArray(data) && data.length > 0) setVendors(data);
       }},
       { key: 'zoomRequests', url: '/zoom-requests', setter: (data) => {
-        if (Array.isArray(data) && data.length > 0) setZoomRequests(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setZoomRequests(prev => mergeRemoteZoom(prev, data));
+        }
       }},
       { key: 'publications', url: '/publications', setter: (data) => {
         if (Array.isArray(data) && data.length > 0) setPublications(data);
       }},
       { key: 'tasks', url: '/tasks', setter: (data) => {
-        if (Array.isArray(data) && data.length > 0) setTasks(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setTasks(prev => mergeRemoteTasks(prev, data));
+        }
       }},
       { key: 'auditLogs', url: '/audit-logs', setter: (data) => {
         if (Array.isArray(data) && data.length > 0) setAuditLogs(data);
@@ -102,6 +216,141 @@ export function DataProvider({ children }) {
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  // --- REAL-TIME LIVE SYNC (SSE, Cross-Tab Broadcast, and Polling Fallback) ---
+  const syncChannelRef = React.useRef(null);
+
+  useEffect(() => {
+    // 1. Cross-Tab / Cross-Window BroadcastChannel for zero-latency local sync
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      const channel = new BroadcastChannel('itsm_live_sync');
+      syncChannelRef.current = channel;
+
+      channel.onmessage = (event) => {
+        const { type, payload } = event.data || {};
+        if (type === 'TASK_UPDATED' && payload) {
+          setTasks(prev => {
+            const match = prev.find(t => t.id === payload.id || t.taskNumber === (payload.taskNumber || payload.id) || (payload.title && t.title?.toLowerCase() === payload.title?.toLowerCase()));
+            if (match) {
+              return prev.map(t => t.id === match.id ? { ...t, ...payload } : t);
+            }
+            return [payload, ...prev];
+          });
+        } else if (type === 'ZOOM_UPDATED' && payload) {
+          setZoomRequests(prev => {
+            const match = prev.find(z => z.id === payload.id || (payload.meetingName && z.meetingName?.toLowerCase() === payload.meetingName?.toLowerCase()));
+            if (match) {
+              return prev.map(z => z.id === match.id ? { ...z, ...payload } : z);
+            }
+            return [payload, ...prev];
+          });
+        } else if (type === 'ZOOM_DELETED' && payload) {
+          setZoomRequests(prev => prev.filter(z => z.id !== payload.id && z.id !== payload.mappedId));
+        }
+      };
+
+      return () => {
+        channel.close();
+        syncChannelRef.current = null;
+      };
+    }
+  }, []);
+
+  // 2. Real-time Server-Sent Events (SSE) from Backend API + Background Polling
+  useEffect(() => {
+    let es = null;
+    let reconnectTimeout = null;
+
+    const connectSSE = () => {
+      try {
+        es = new EventSource(`${API_BASE}/events`);
+
+        es.addEventListener('task_update', (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.task) {
+              setTasks(prev => {
+                const match = prev.find(t => t.id === data.task.id || t.taskNumber === (data.task.taskNumber || data.task.id) || (data.task.title && t.title?.toLowerCase() === data.task.title?.toLowerCase()));
+                if (match) {
+                  return prev.map(t => t.id === match.id ? { ...t, ...data.task } : t);
+                }
+                return [data.task, ...prev];
+              });
+            }
+          } catch (err) {
+            console.error('Error parsing task_update event:', err);
+          }
+        });
+
+        es.addEventListener('zoom_update', (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.action === 'DELETE' && data.id) {
+              setZoomRequests(prev => prev.filter(z => z.id !== data.id && z.id !== data.mappedId));
+            } else if (data.zoomRequest) {
+              setZoomRequests(prev => {
+                const match = prev.find(z => z.id === data.zoomRequest.id || (data.zoomRequest.meetingName && z.meetingName?.toLowerCase() === data.zoomRequest.meetingName?.toLowerCase()));
+                if (match) {
+                  return prev.map(z => z.id === match.id ? { ...z, ...data.zoomRequest } : z);
+                }
+                return [data.zoomRequest, ...prev];
+              });
+            }
+          } catch (err) {
+            console.error('Error parsing zoom_update event:', err);
+          }
+        });
+
+        es.onerror = () => {
+          if (es) {
+            es.close();
+            es = null;
+          }
+          // Reconnect after 4s
+          reconnectTimeout = setTimeout(connectSSE, 4000);
+        };
+      } catch (err) {
+        reconnectTimeout = setTimeout(connectSSE, 4000);
+      }
+    };
+
+    connectSSE();
+
+    // 3. Periodic Synchronization for tasks & meetings (Every 4 seconds + on tab focus)
+    const refreshLiveResources = async () => {
+      try {
+        const [taskRes, zoomRes] = await Promise.allSettled([
+          fetch(`${API_BASE}/tasks`),
+          fetch(`${API_BASE}/zoom-requests`)
+        ]);
+        if (taskRes.status === 'fulfilled' && taskRes.value.ok) {
+          const freshTasks = await taskRes.value.json().catch(() => null);
+          if (Array.isArray(freshTasks) && freshTasks.length > 0) {
+            setTasks(prev => mergeRemoteTasks(prev, freshTasks));
+          }
+        }
+        if (zoomRes.status === 'fulfilled' && zoomRes.value.ok) {
+          const freshZoom = await zoomRes.value.json().catch(() => null);
+          if (Array.isArray(freshZoom) && freshZoom.length > 0) {
+            setZoomRequests(prev => mergeRemoteZoom(prev, freshZoom));
+          }
+        }
+      } catch (e) {
+        // silent fallback
+      }
+    };
+
+    const intervalTimer = setInterval(refreshLiveResources, 4000);
+    const onWindowFocus = () => refreshLiveResources();
+    window.addEventListener('focus', onWindowFocus);
+
+    return () => {
+      if (es) es.close();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      clearInterval(intervalTimer);
+      window.removeEventListener('focus', onWindowFocus);
+    };
+  }, []);
 
   const apiCall = async (endpoint, method, body) => {
     try {
@@ -259,19 +508,24 @@ export function DataProvider({ children }) {
   // --- TASKS ---
   const updateTaskStatus = async (id, status, holdReason = '', user = null) => {
     const canonicalStatus = status === 'Pending' ? 'On Hold' : status;
-    setTasks(prev => prev.map(t => (t.id === id || t.taskNumber === id) ? {
-      ...t,
+    const patchPayload = {
       status: canonicalStatus,
-      holdReason: (canonicalStatus === 'On Hold' || canonicalStatus === 'Hold') ? holdReason : (t.holdReason || ''),
+      holdReason: (canonicalStatus === 'On Hold' || canonicalStatus === 'Hold') ? holdReason : '',
       updatedAt: new Date().toISOString()
-    } : t));
+    };
+
+    setTasks(prev => prev.map(t => (t.id === id || t.taskNumber === id) ? { ...t, ...patchPayload } : t));
+    syncChannelRef.current?.postMessage({ type: 'TASK_UPDATED', payload: { id, ...patchPayload } });
+
     const logDesc = (canonicalStatus === 'On Hold' || canonicalStatus === 'Hold') && holdReason
       ? `Changed task status to "${canonicalStatus}" (Reason: ${holdReason})`
       : `Changed task status to "${canonicalStatus}"`;
     addAuditLog(user?.id, user?.username || user?.name, 'STATUS_CHANGE', 'Task', id, logDesc, 'Task Management');
+
     const updated = await apiCall(`/tasks/${id}/status`, 'PATCH', { status: canonicalStatus, holdReason });
     if (updated) {
       setTasks(prev => prev.map(t => (t.id === id || t.taskNumber === id) ? { ...t, ...updated } : t));
+      syncChannelRef.current?.postMessage({ type: 'TASK_UPDATED', payload: updated });
     }
   };
 
@@ -285,7 +539,9 @@ export function DataProvider({ children }) {
       const progress = updatedSubtasks.length ? Math.round((completed / updatedSubtasks.length) * 100) : 0;
       const newStatus = progress === 100 ? 'Completed' : t.status === 'To Do' && progress > 0 ? 'In Progress' : t.status;
       
-      return { ...t, subtasks: updatedSubtasks, status: newStatus, updatedAt: new Date().toISOString() };
+      const updatedTask = { ...t, subtasks: updatedSubtasks, status: newStatus, updatedAt: new Date().toISOString() };
+      syncChannelRef.current?.postMessage({ type: 'TASK_UPDATED', payload: updatedTask });
+      return updatedTask;
     }));
     addAuditLog(user?.id, user?.username || user?.name, 'UPDATE', 'Subtask', subtaskId, `Updated subtask status to "${status}"`, 'Task Management');
     apiCall(`/tasks/${taskId}/subtasks/${subtaskId}`, 'PATCH', { status });
@@ -302,6 +558,7 @@ export function DataProvider({ children }) {
       subtasks: taskData.subtasks || []
     };
     setTasks(prev => [newTask, ...prev]);
+    syncChannelRef.current?.postMessage({ type: 'TASK_UPDATED', payload: newTask });
     addAuditLog(user?.id, user?.username || user?.name, 'CREATE', 'Task', newTask.id, `Created task: ${taskData.title}`, 'Task Management');
 
     // Send direct assignment alert to each assigned member
@@ -319,6 +576,7 @@ export function DataProvider({ children }) {
     const serverResult = await apiCall('/tasks', 'POST', { ...taskData, createdBy: user?.id });
     if (serverResult) {
       setTasks(prev => prev.map(t => t.id === newTask.id ? serverResult : t));
+      syncChannelRef.current?.postMessage({ type: 'TASK_UPDATED', payload: serverResult });
       return serverResult;
     }
     return newTask;
@@ -332,9 +590,11 @@ export function DataProvider({ children }) {
       meetingLink: data.meetingLink || '',
       requestedBy: data.requestedBy || user?.id,
       status: data.status || (data.meetingLink ? 'Confirmed' : 'Pending'),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     setZoomRequests(prev => [newReq, ...prev]);
+    syncChannelRef.current?.postMessage({ type: 'ZOOM_UPDATED', payload: newReq });
     addAuditLog(user?.id, user?.username || user?.name, 'CREATE', 'ZoomRequest', newReq.id, `Submitted Zoom request: ${data.meetingName}`, 'Zoom Support');
     const serverResult = await apiCall('/zoom-requests', 'POST', {
       ...data,
@@ -342,39 +602,56 @@ export function DataProvider({ children }) {
       meetingLink: data.meetingLink || '',
       status: data.status || (data.meetingLink ? 'Confirmed' : 'Pending')
     });
-    if (serverResult) {
-      setZoomRequests(prev => prev.map(z => z.id === newReq.id ? serverResult : z));
+    if (serverResult && serverResult.id) {
+      setZoomRequests(prev => prev.map(z => z.id === newReq.id ? { ...newReq, ...serverResult } : z));
+      syncChannelRef.current?.postMessage({ type: 'ZOOM_UPDATED', payload: { ...newReq, ...serverResult } });
       return serverResult;
     }
     return newReq;
   };
 
   const assignZoomRequest = (id, assigneeId, user) => {
-    setZoomRequests(prev => prev.map(z => z.id === id ? { ...z, assignedTo: assigneeId, status: z.status === 'Pending' ? 'Confirmed' : z.status } : z));
+    setZoomRequests(prev => prev.map(z => z.id === id ? { ...z, assignedTo: assigneeId, status: z.status === 'Pending' ? 'Confirmed' : z.status, updatedAt: new Date().toISOString() } : z));
+    syncChannelRef.current?.postMessage({ type: 'ZOOM_UPDATED', payload: { id, assignedTo: assigneeId, updatedAt: new Date().toISOString() } });
     addAuditLog(user?.id, user?.username || user?.name, 'ASSIGN', 'ZoomRequest', id, `Assigned Zoom request to ${assigneeId}`, 'Zoom Support');
     apiCall(`/zoom-requests/${id}/assign`, 'PATCH', { assigneeId });
   };
 
   const updateZoomMeetingLink = (id, meetingLink, user) => {
-    setZoomRequests(prev => prev.map(z => z.id === id ? {
-      ...z,
+    const patch = {
       meetingLink,
       linkUploadedBy: user?.id,
       linkUploadedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setZoomRequests(prev => prev.map(z => z.id === id ? {
+      ...z,
+      ...patch,
       status: z.status === 'Pending' ? 'Confirmed' : z.status,
     } : z));
+    syncChannelRef.current?.postMessage({ type: 'ZOOM_UPDATED', payload: { id, ...patch } });
     addAuditLog(user?.id, user?.username || user?.name, 'UPDATE_LINK', 'ZoomRequest', id, `Uploaded Zoom meeting link for ${id}`, 'Zoom Support');
     apiCall(`/zoom-requests/${id}/link`, 'PATCH', { meetingLink, linkUploadedBy: user?.id });
   };
 
   const updateZoomStatus = (id, status, user) => {
-    setZoomRequests(prev => prev.map(z => z.id === id ? { ...z, status } : z));
+    setZoomRequests(prev => prev.map(z => z.id === id ? { ...z, status, updatedAt: new Date().toISOString() } : z));
+    syncChannelRef.current?.postMessage({ type: 'ZOOM_UPDATED', payload: { id, status, updatedAt: new Date().toISOString() } });
     addAuditLog(user?.id, user?.username || user?.name, 'UPDATE_STATUS', 'ZoomRequest', id, `Updated Zoom request status to ${status}`, 'Zoom Support');
     apiCall(`/zoom-requests/${id}/status`, 'PATCH', { status });
   };
 
   const deleteZoomRequest = (id, user) => {
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('itsm_deleted_zoom_ids') || '[]');
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem('itsm_deleted_zoom_ids', JSON.stringify(deletedIds));
+      }
+    } catch (e) {}
+
     setZoomRequests(prev => prev.filter(z => z.id !== id));
+    syncChannelRef.current?.postMessage({ type: 'ZOOM_DELETED', payload: { id } });
     addAuditLog(user?.id, user?.username || user?.name, 'DELETE', 'ZoomRequest', id, `Deleted Zoom request ${id}`, 'Zoom Support');
     apiCall(`/zoom-requests/${id}`, 'DELETE');
   };

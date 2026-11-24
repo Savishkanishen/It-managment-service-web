@@ -33,7 +33,7 @@ export default function ITAdminDashboard() {
   const { currentUser } = useAuth();
   const {
     tickets, stock, repairs, zoomRequests, users, divisions,
-    createUser, resetUserPassword, toggleUserActive, updateZoomMeetingLink,
+    createUser, resetUserPassword, toggleUserActive, updateZoomMeetingLink, updateZoomStatus, deleteZoomRequest,
     broadcasts, addBroadcast, toggleBroadcast, removeBroadcast
   } = useData();
   const { addToast } = useNotifications();
@@ -541,6 +541,30 @@ export default function ITAdminDashboard() {
                         <LinkIcon size={12} /> Provision Link
                       </button>
                     )}
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => {
+                        updateZoomStatus(z.id, 'Completed', currentUser);
+                        addToast('success', 'Meeting Completed', `Meeting "${z.meetingName}" marked as Completed.`);
+                      }}
+                      style={{ fontSize: '0.72rem', color: 'var(--success-700)', padding: '3px 6px' }}
+                      title="Mark meeting complete"
+                    >
+                      Complete
+                    </button>
+                    <button
+                      className="icon-btn"
+                      onClick={() => {
+                        if (window.confirm(`Delete Zoom meeting "${z.meetingName}"?`)) {
+                          deleteZoomRequest(z.id, currentUser);
+                          addToast('warning', 'Meeting Deleted', `Meeting "${z.meetingName}" has been removed.`);
+                        }
+                      }}
+                      style={{ width: 24, height: 24, color: 'var(--danger-500)' }}
+                      title="Delete meeting"
+                    >
+                      <Trash2 size={12} />
+                    </button>
                   </div>
                 </div>
               </div>

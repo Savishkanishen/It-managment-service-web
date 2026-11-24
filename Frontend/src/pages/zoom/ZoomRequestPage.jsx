@@ -35,7 +35,7 @@ export default function ZoomRequestPage() {
     addToast('success', 'Zoom Link Generated', 'Official Zoom meeting URL auto-generated.');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.meetingName || !form.location || !form.scheduledDate) {
       addToast('error', 'Missing Fields', 'Please fill required fields');
@@ -47,7 +47,7 @@ export default function ZoomRequestPage() {
       status: form.meetingLink ? 'Confirmed' : 'Pending',
     };
 
-    createZoomRequest(payload, currentUser);
+    await createZoomRequest(payload, currentUser);
     addToast(
       'success',
       form.meetingLink ? 'Meeting Created & Confirmed' : 'Request Submitted',

@@ -5,13 +5,13 @@ import { useNotifications } from '../../context/NotificationContext';
 import StatCard from '../../components/ui/StatCard';
 import { Badge } from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { Video, Clock, MapPin, Link as LinkIcon, Plus, CheckCircle, Monitor, Info } from 'lucide-react';
+import { Video, Clock, MapPin, Link as LinkIcon, Plus, CheckCircle, Monitor, Info, CheckCircle2, Trash2 } from 'lucide-react';
 
 const EQUIPMENT_OPTIONS = ['Projector','HDMI Cable','VGA Cable','Laptop','Webcam','Microphone','Screen','Extension Cord','Pointer'];
 
 export default function ZoomRequesterDashboard() {
   const { currentUser } = useAuth();
-  const { zoomRequests, createZoomRequest } = useData();
+  const { zoomRequests, createZoomRequest, updateZoomStatus, deleteZoomRequest } = useData();
   const { addToast } = useNotifications();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -20,6 +20,18 @@ export default function ZoomRequesterDashboard() {
   });
 
   const myRequests = zoomRequests.filter(z => z.requestedBy === currentUser?.id || z.requestedBy === currentUser?.username);
+
+  const handleStatusChange = (z, newStatus) => {
+    updateZoomStatus(z.id, newStatus, currentUser);
+    addToast('success', 'Status Updated', `Meeting "${z.meetingName}" marked as ${newStatus}`);
+  };
+
+  const handleDelete = (z) => {
+    if (window.confirm(`Are you sure you want to cancel and delete meeting "${z.meetingName}"?`)) {
+      deleteZoomRequest(z.id, currentUser);
+      addToast('warning', 'Meeting Deleted', `Meeting "${z.meetingName}" has been removed.`);
+    }
+  };
 
   const toggleEquip = (eq) => {
     setForm(f => ({
@@ -71,6 +83,7 @@ export default function ZoomRequesterDashboard() {
                 <th>Equipment</th>
                 <th>Status</th>
                 <th>Assigned Tech</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -106,6 +119,38 @@ export default function ZoomRequesterDashboard() {
                   </td>
                   <td><Badge status={z.status} /></td>
                   <td style={{ fontSize: '0.8rem', color: 'var(--gray-600)' }}>{z.assignedTo ? 'Assigned' : 'Unassigned'}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                      {z.status !== 'Completed' ? (
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => handleStatusChange(z, 'Completed')}
+                          style={{ color: 'var(--success-700)', padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(16, 185, 129, 0.08)' }}
+                          title="Mark completed"
+                        >
+                          <CheckCircle2 size={13} />
+                          <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>Complete</span>
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => handleStatusChange(z, 'Confirmed')}
+                          style={{ fontSize: '0.72rem', color: 'var(--slate-500)', padding: '4px 8px' }}
+                          title="Reopen meeting"
+                        >
+                          Reopen
+                        </button>
+                      )}
+                      <button
+                        className="icon-btn"
+                        onClick={() => handleDelete(z)}
+                        style={{ width: 28, height: 28, color: 'var(--danger-500)' }}
+                        title="Delete meeting"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

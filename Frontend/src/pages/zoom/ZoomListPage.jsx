@@ -165,8 +165,8 @@ export default function ZoomListPage() {
                       </div>
                     )}
                   </div>
-                  {canManageZoom && (
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {canManageZoom && (
                       <button
                         className={z.meetingLink ? "btn btn-secondary btn-sm" : "btn btn-primary btn-sm"}
                         onClick={() => { setLinkModal(z); setMeetingLink(z.meetingLink || ''); }}
@@ -174,44 +174,49 @@ export default function ZoomListPage() {
                       >
                         <LinkIcon size={13} /> {z.meetingLink ? 'Edit Link' : 'Upload Link'}
                       </button>
-                      {z.status !== 'Completed' ? (
-                        <>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => { setAssignModal(z); setAssignee(z.assignedTo || ''); }}
-                            title="Assign technician"
-                          >
-                            <User size={13} /> {z.assignedTo ? 'Reassign' : 'Assign'}
-                          </button>
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => handleStatusChange(z, 'Completed')}
-                            style={{ color: 'var(--success-700)', padding: '5px 8px' }}
-                            title="Mark meeting completed"
-                          >
-                            <CheckCircle2 size={15} />
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => handleStatusChange(z, 'Confirmed')}
-                          style={{ fontSize: '0.72rem', color: 'var(--slate-500)' }}
-                          title="Reopen meeting"
-                        >
-                          Reopen
-                        </button>
-                      )}
+                    )}
+                    {canManageZoom && z.status !== 'Completed' && (
                       <button
-                        className="icon-btn"
-                        onClick={() => handleDelete(z)}
-                        style={{ width: 28, height: 28, color: 'var(--danger-500)' }}
-                        title="Delete meeting"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => { setAssignModal(z); setAssignee(z.assignedTo || ''); }}
+                        title="Assign technician"
                       >
-                        <Trash2 size={13} />
+                        <User size={13} /> {z.assignedTo ? 'Reassign' : 'Assign'}
                       </button>
-                    </div>
-                  )}
+                    )}
+
+                    {/* Complete / Reopen Meeting — Open to everyone */}
+                    {z.status !== 'Completed' ? (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => handleStatusChange(z, 'Completed')}
+                        style={{ color: 'var(--success-700)', padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(16, 185, 129, 0.08)' }}
+                        title="Mark meeting completed"
+                      >
+                        <CheckCircle2 size={14} />
+                        <span style={{ fontSize: '0.74rem', fontWeight: 600 }}>Complete</span>
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => handleStatusChange(z, 'Confirmed')}
+                        style={{ fontSize: '0.72rem', color: 'var(--slate-500)', padding: '4px 8px' }}
+                        title="Reopen meeting"
+                      >
+                        Reopen
+                      </button>
+                    )}
+
+                    {/* Delete Meeting — Open to everyone */}
+                    <button
+                      className="icon-btn"
+                      onClick={() => handleDelete(z)}
+                      style={{ width: 28, height: 28, color: 'var(--danger-500)' }}
+                      title="Delete meeting"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
             );

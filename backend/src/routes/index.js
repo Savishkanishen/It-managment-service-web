@@ -14,6 +14,7 @@ const publicationRoutes = require('./publications');
 const zoomRoutes = require('./zoom-requests');
 const taskRoutes = require('./tasks');
 const auditLogRoutes = require('./audit-logs');
+const eventRoutes = require('./events');
 
 // 2. Mount Endpoints
 router.use('/auth', authRoutes);
@@ -28,6 +29,7 @@ router.use('/publications', publicationRoutes);
 router.use('/zoom-requests', zoomRoutes);
 router.use('/tasks', taskRoutes);
 router.use('/audit-logs', auditLogRoutes);
+router.use('/events', eventRoutes);
 
 module.exports = router;
 
