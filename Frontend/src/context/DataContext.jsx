@@ -109,6 +109,43 @@ function mergeRemoteTickets(localTickets, remoteTickets) {
   return Array.from(new Set(resultMap.values())).filter(t => !deletedIds.includes(t.id) && !deletedIds.includes(t.ticketNumber));
 }
 
+function mergeRemoteRepairs(localRepairs, remoteRepairs) {
+  let deletedIds = [];
+  try {
+    deletedIds = JSON.parse(localStorage.getItem('itsm_deleted_repair_ids') || '[]');
+  } catch (e) {}
+
+  if (!Array.isArray(remoteRepairs) || remoteRepairs.length === 0) {
+    return localRepairs.filter(r => !deletedIds.includes(r.id) && !deletedIds.includes(r.referenceNumber));
+  }
+
+  const resultMap = new Map();
+
+  localRepairs.filter(r => !deletedIds.includes(r.id) && !deletedIds.includes(r.referenceNumber)).forEach(r => {
+    if (r.id) resultMap.set(r.id, r);
+    if (r.referenceNumber) resultMap.set(r.referenceNumber, r);
+  });
+
+  remoteRepairs.forEach(rr => {
+    if (deletedIds.includes(rr.id) || deletedIds.includes(rr.referenceNumber)) return;
+    const key = rr.id || rr.referenceNumber;
+    const local = resultMap.get(rr.id) || (rr.referenceNumber ? resultMap.get(rr.referenceNumber) : null);
+    if (!local) {
+      resultMap.set(key, rr);
+    } else {
+      const localClosed = local.status === 'Closed';
+      const remoteClosed = rr.status === 'Closed';
+      if (localClosed && !remoteClosed) {
+        resultMap.set(local.id, { ...rr, ...local, status: 'Closed' });
+      } else {
+        resultMap.set(local.id, { ...local, ...rr });
+      }
+    }
+  });
+
+  return Array.from(new Set(resultMap.values())).filter(r => !deletedIds.includes(r.id) && !deletedIds.includes(r.referenceNumber));
+}
+
 export function DataProvider({ children }) {
   const { notifyWorkAssignment } = useNotifications() || {};
   const [divisions, setDivisions] = useState(DIVISIONS);
@@ -124,7 +161,16 @@ export function DataProvider({ children }) {
     } catch (e) {}
     return TICKETS;
   });
-  const [repairs, setRepairs] = useState(REPAIRS);
+  const [repairs, setRepairs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('itsm_repairs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return REPAIRS;
+  });
   const [vendors, setVendors] = useState(VENDORS);
   const [zoomRequests, setZoomRequests] = useState(() => {
     try {
@@ -160,7 +206,7 @@ export function DataProvider({ children }) {
     setDynamicAssets(assets);
   }, [assets]);
 
-  // Persist tasks, zoomRequests, and tickets to localStorage
+  // Persist tasks, zoomRequests, tickets, and repairs to localStorage
   useEffect(() => {
     try {
       localStorage.setItem('itsm_tasks', JSON.stringify(tasks));
@@ -179,6 +225,12 @@ export function DataProvider({ children }) {
     } catch (e) {}
   }, [tickets]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('itsm_repairs', JSON.stringify(repairs));
+    } catch (e) {}
+  }, [repairs]);
+
   // Cross-tab storage synchronization
   useEffect(() => {
     const handleStorageChange = (e) => {
@@ -196,6 +248,11 @@ export function DataProvider({ children }) {
         try {
           const parsed = JSON.parse(e.newValue);
           if (Array.isArray(parsed)) setTickets(parsed);
+        } catch (err) {}
+      } else if (e.key === 'itsm_repairs' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setRepairs(parsed);
         } catch (err) {}
       }
     };
@@ -227,7 +284,9 @@ export function DataProvider({ children }) {
         }
       }},
       { key: 'repairs', url: '/repairs', setter: (data) => {
-        if (Array.isArray(data) && data.length > 0) setRepairs(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setRepairs(prev => mergeRemoteRepairs(prev, data));
+        }
       }},
       { key: 'vendors', url: '/vendors', setter: (data) => {
         if (Array.isArray(data) && data.length > 0) setVendors(data);
@@ -315,6 +374,16 @@ export function DataProvider({ children }) {
           });
         } else if (type === 'TICKET_DELETED' && payload) {
           setTickets(prev => prev.filter(t => t.id !== payload.id && t.ticketNumber !== payload.id && t.id !== payload.mappedId));
+        } else if (type === 'REPAIR_UPDATED' && payload) {
+          setRepairs(prev => {
+            const match = prev.find(r => r.id === payload.id || r.referenceNumber === (payload.referenceNumber || payload.id));
+            if (match) {
+              return prev.map(r => (r.id === match.id || r.referenceNumber === match.referenceNumber) ? { ...r, ...payload } : r);
+            }
+            return [payload, ...prev];
+          });
+        } else if (type === 'REPAIR_DELETED' && payload) {
+          setRepairs(prev => prev.filter(r => r.id !== payload.id && r.referenceNumber !== payload.id && r.id !== payload.mappedId));
         }
       };
 
@@ -386,6 +455,25 @@ export function DataProvider({ children }) {
             }
           } catch (err) {
             console.error('Error parsing ticket_update event:', err);
+          }
+        });
+
+        es.addEventListener('repair_update', (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.action === 'DELETE' && data.id) {
+              setRepairs(prev => prev.filter(r => r.id !== data.id && r.referenceNumber !== data.id && r.id !== data.mappedId));
+            } else if (data.repair) {
+              setRepairs(prev => {
+                const match = prev.find(r => r.id === data.repair.id || r.referenceNumber === (data.repair.referenceNumber || data.repair.id));
+                if (match) {
+                  return prev.map(r => (r.id === match.id || r.referenceNumber === match.referenceNumber) ? { ...r, ...data.repair } : r);
+                }
+                return [data.repair, ...prev];
+              });
+            }
+          } catch (err) {
+            console.error('Error parsing repair_update event:', err);
           }
         });
 
@@ -923,25 +1011,59 @@ export function DataProvider({ children }) {
       referenceNumber: `REP-${Date.now()}`,
       ...data,
       status: 'Active',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     setRepairs(prev => [newRepair, ...prev]);
+    syncChannelRef.current?.postMessage({ type: 'REPAIR_UPDATED', payload: newRepair });
     addAuditLog(user?.id, user?.username || user?.name, 'DISPATCH', 'Repair', newRepair.id, `Dispatched asset for repair: ${data.forReason}`, 'External Repairs');
     const serverResult = await apiCall('/repairs', 'POST', { ...data, assignedTo: user?.id });
-    if (serverResult) {
-      setRepairs(prev => prev.map(r => r.id === newRepair.id ? serverResult : r));
+    if (serverResult && serverResult.id) {
+      setRepairs(prev => prev.map(r => r.id === newRepair.id ? { ...newRepair, ...serverResult } : r));
+      syncChannelRef.current?.postMessage({ type: 'REPAIR_UPDATED', payload: { ...newRepair, ...serverResult } });
       return serverResult;
     }
     return newRepair;
   };
 
   const closeRepair = async (id, data, user) => {
-    setRepairs(prev => prev.map(r => (r.id === id || r.referenceNumber === id) ? { ...r, ...data, status: 'Closed' } : r));
-    addAuditLog(user?.id, user?.username || user?.name, 'CLOSE', 'Repair', id, `Closed repair job. Parts replaced: ${data.whatReplaced}`, 'External Repairs');
-    const res = await apiCall(`/repairs/${id}/close`, 'PATCH', data);
+    const cost = (data.totalCost !== undefined && data.totalCost !== null && data.totalCost !== '') ? parseFloat(data.totalCost) : null;
+    const patch = {
+      ...data,
+      totalCost: cost,
+      status: 'Closed',
+      actualReturnDate: new Date().toISOString().split('T')[0],
+      closedAt: new Date().toISOString(),
+      closedBy: user?.name || user?.username || 'IT Staff',
+      updatedAt: new Date().toISOString(),
+    };
+
+    setRepairs(prev => prev.map(r => (r.id === id || r.referenceNumber === id) ? { ...r, ...patch } : r));
+    syncChannelRef.current?.postMessage({ type: 'REPAIR_UPDATED', payload: { id, ...patch } });
+    addAuditLog(user?.id, user?.username || user?.name, 'CLOSE', 'Repair', id, `Closed repair job. Parts replaced: ${data.whatReplaced || 'N/A'}`, 'External Repairs');
+
+    const res = await apiCall(`/repairs/${id}/close`, 'PATCH', patch);
     if (res) {
-      setRepairs(prev => prev.map(r => (r.id === id || r.referenceNumber === id || r.id === res.id) ? res : r));
+      setRepairs(prev => prev.map(r => (r.id === id || r.referenceNumber === id || r.id === res.id) ? { ...r, ...res, status: 'Closed' } : r));
+      syncChannelRef.current?.postMessage({ type: 'REPAIR_UPDATED', payload: { ...res, status: 'Closed' } });
+      return res;
     }
+    return patch;
+  };
+
+  const deleteRepair = (id, user) => {
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('itsm_deleted_repair_ids') || '[]');
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem('itsm_deleted_repair_ids', JSON.stringify(deletedIds));
+      }
+    } catch (e) {}
+
+    setRepairs(prev => prev.filter(r => r.id !== id && r.referenceNumber !== id));
+    syncChannelRef.current?.postMessage({ type: 'REPAIR_DELETED', payload: { id } });
+    addAuditLog(user?.id, user?.username || user?.name, 'DELETE', 'Repair', id, `Deleted repair record ${id}`, 'External Repairs');
+    apiCall(`/repairs/${id}`, 'DELETE');
   };
 
   // --- PUBLICATIONS ---
@@ -998,7 +1120,7 @@ export function DataProvider({ children }) {
       createZoomRequest, assignZoomRequest, updateZoomMeetingLink, updateZoomStatus, deleteZoomRequest,
       createUser, updateUserRole, toggleUserActive, resetUserPassword,
       broadcasts, addBroadcast, toggleBroadcast, removeBroadcast,
-      createRepair, closeRepair,
+      createRepair, closeRepair, deleteRepair,
       createPublication, approvePublication,
       addAuditLog,
     }}>

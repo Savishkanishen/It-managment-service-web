@@ -660,10 +660,10 @@ export default function ITAdminDashboard() {
                   <strong>Vendor:</strong> {r.vendorName}
                 </div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--gray-600)', marginBottom: 4 }}>
-                  <strong>For:</strong> {r.forReason.slice(0, 60)}...
+                  <strong>For:</strong> {r.forReason ? (r.forReason.length > 60 ? `${r.forReason.slice(0, 60)}...` : r.forReason) : (r.issueDescription || 'Hardware repair')}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: r.status === 'Overdue' ? 'var(--danger-500)' : 'var(--gray-500)' }}>
-                  Expected: {r.expectedReturn}
+                <div style={{ fontSize: '0.75rem', color: r.status === 'Closed' ? '#10B981' : (r.status === 'Overdue' ? 'var(--danger-500)' : 'var(--gray-500)') }}>
+                  {r.status === 'Closed' ? (r.actualReturnDate ? `Closed: ${r.actualReturnDate}` : 'Closed') : `Expected: ${r.expectedReturn || '—'}`}
                 </div>
               </div>
             ))}
