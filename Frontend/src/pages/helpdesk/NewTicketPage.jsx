@@ -16,7 +16,10 @@ export default function NewTicketPage() {
     division: '', assetId: '', assignedTo: '',
   });
 
-  const technicians = (users && users.length > 0 ? users : USERS).filter(u => [ROLES.IT_ADMIN, ROLES.IT_OFFICER, ROLES.TRAINEE].includes(u.role));
+  const technicians = (users && users.length > 0 ? users : USERS).filter(u => {
+    const r = (u.role || '').toLowerCase();
+    return r.includes('admin') || r.includes('officer') || r.includes('trainee');
+  });
   const setField = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async (e) => {

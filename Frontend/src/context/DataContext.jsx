@@ -72,12 +72,58 @@ function mergeRemoteZoom(localZoom, remoteZoom) {
   return Array.from(new Set(resultMap.values())).filter(z => !deletedIds.includes(z.id));
 }
 
+function mergeRemoteTickets(localTickets, remoteTickets) {
+  let deletedIds = [];
+  try {
+    deletedIds = JSON.parse(localStorage.getItem('itsm_deleted_ticket_ids') || '[]');
+  } catch (e) {}
+
+  if (!Array.isArray(remoteTickets) || remoteTickets.length === 0) {
+    return localTickets.filter(t => !deletedIds.includes(t.id) && !deletedIds.includes(t.ticketNumber));
+  }
+
+  const resultMap = new Map();
+
+  localTickets.filter(t => !deletedIds.includes(t.id) && !deletedIds.includes(t.ticketNumber)).forEach(t => {
+    if (t.id) resultMap.set(t.id, t);
+    if (t.ticketNumber) resultMap.set(t.ticketNumber, t);
+  });
+
+  remoteTickets.forEach(rt => {
+    if (deletedIds.includes(rt.id) || deletedIds.includes(rt.ticketNumber)) return;
+    const key = rt.id || rt.ticketNumber;
+    const local = resultMap.get(rt.id) || (rt.ticketNumber ? resultMap.get(rt.ticketNumber) : null);
+    if (!local) {
+      resultMap.set(key, rt);
+    } else {
+      const localResolved = local.status === 'Resolved' || local.status === 'Closed';
+      const remoteResolved = rt.status === 'Resolved' || rt.status === 'Closed';
+      if (localResolved && !remoteResolved) {
+        resultMap.set(local.id, { ...rt, ...local, status: local.status });
+      } else {
+        resultMap.set(local.id, { ...local, ...rt });
+      }
+    }
+  });
+
+  return Array.from(new Set(resultMap.values())).filter(t => !deletedIds.includes(t.id) && !deletedIds.includes(t.ticketNumber));
+}
+
 export function DataProvider({ children }) {
   const { notifyWorkAssignment } = useNotifications() || {};
   const [divisions, setDivisions] = useState(DIVISIONS);
   const [assets, setAssets] = useState(ASSETS);
   const [stock, setStock] = useState(STOCK_ITEMS);
-  const [tickets, setTickets] = useState(TICKETS);
+  const [tickets, setTickets] = useState(() => {
+    try {
+      const saved = localStorage.getItem('itsm_tickets');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return TICKETS;
+  });
   const [repairs, setRepairs] = useState(REPAIRS);
   const [vendors, setVendors] = useState(VENDORS);
   const [zoomRequests, setZoomRequests] = useState(() => {
@@ -114,7 +160,7 @@ export function DataProvider({ children }) {
     setDynamicAssets(assets);
   }, [assets]);
 
-  // Persist tasks and zoomRequests to localStorage
+  // Persist tasks, zoomRequests, and tickets to localStorage
   useEffect(() => {
     try {
       localStorage.setItem('itsm_tasks', JSON.stringify(tasks));
@@ -126,6 +172,12 @@ export function DataProvider({ children }) {
       localStorage.setItem('itsm_zoom_requests', JSON.stringify(zoomRequests));
     } catch (e) {}
   }, [zoomRequests]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('itsm_tickets', JSON.stringify(tickets));
+    } catch (e) {}
+  }, [tickets]);
 
   // Cross-tab storage synchronization
   useEffect(() => {
@@ -139,6 +191,11 @@ export function DataProvider({ children }) {
         try {
           const parsed = JSON.parse(e.newValue);
           if (Array.isArray(parsed)) setZoomRequests(parsed);
+        } catch (err) {}
+      } else if (e.key === 'itsm_tickets' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setTickets(parsed);
         } catch (err) {}
       }
     };
@@ -165,7 +222,9 @@ export function DataProvider({ children }) {
         if (Array.isArray(data) && data.length > 0) setStock(data);
       }},
       { key: 'tickets', url: '/tickets', setter: (data) => {
-        if (Array.isArray(data) && data.length > 0) setTickets(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setTickets(prev => mergeRemoteTickets(prev, data));
+        }
       }},
       { key: 'repairs', url: '/repairs', setter: (data) => {
         if (Array.isArray(data) && data.length > 0) setRepairs(data);
@@ -246,6 +305,16 @@ export function DataProvider({ children }) {
           });
         } else if (type === 'ZOOM_DELETED' && payload) {
           setZoomRequests(prev => prev.filter(z => z.id !== payload.id && z.id !== payload.mappedId));
+        } else if (type === 'TICKET_UPDATED' && payload) {
+          setTickets(prev => {
+            const match = prev.find(t => t.id === payload.id || t.ticketNumber === (payload.ticketNumber || payload.id));
+            if (match) {
+              return prev.map(t => (t.id === match.id) ? { ...t, ...payload } : t);
+            }
+            return [payload, ...prev];
+          });
+        } else if (type === 'TICKET_DELETED' && payload) {
+          setTickets(prev => prev.filter(t => t.id !== payload.id && t.ticketNumber !== payload.id && t.id !== payload.mappedId));
         }
       };
 
@@ -301,6 +370,25 @@ export function DataProvider({ children }) {
           }
         });
 
+        es.addEventListener('ticket_update', (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.action === 'DELETE' && data.id) {
+              setTickets(prev => prev.filter(t => t.id !== data.id && t.ticketNumber !== data.id && t.id !== data.mappedId));
+            } else if (data.ticket) {
+              setTickets(prev => {
+                const match = prev.find(t => t.id === data.ticket.id || t.ticketNumber === (data.ticket.ticketNumber || data.ticket.id));
+                if (match) {
+                  return prev.map(t => (t.id === match.id) ? { ...t, ...data.ticket } : t);
+                }
+                return [data.ticket, ...prev];
+              });
+            }
+          } catch (err) {
+            console.error('Error parsing ticket_update event:', err);
+          }
+        });
+
         es.onerror = () => {
           if (es) {
             es.close();
@@ -316,12 +404,13 @@ export function DataProvider({ children }) {
 
     connectSSE();
 
-    // 3. Periodic Synchronization for tasks & meetings (Every 4 seconds + on tab focus)
+    // 3. Periodic Synchronization for tasks, meetings & tickets (Every 4 seconds + on tab focus)
     const refreshLiveResources = async () => {
       try {
-        const [taskRes, zoomRes] = await Promise.allSettled([
+        const [taskRes, zoomRes, ticketRes] = await Promise.allSettled([
           fetch(`${API_BASE}/tasks`),
-          fetch(`${API_BASE}/zoom-requests`)
+          fetch(`${API_BASE}/zoom-requests`),
+          fetch(`${API_BASE}/tickets`)
         ]);
         if (taskRes.status === 'fulfilled' && taskRes.value.ok) {
           const freshTasks = await taskRes.value.json().catch(() => null);
@@ -333,6 +422,12 @@ export function DataProvider({ children }) {
           const freshZoom = await zoomRes.value.json().catch(() => null);
           if (Array.isArray(freshZoom) && freshZoom.length > 0) {
             setZoomRequests(prev => mergeRemoteZoom(prev, freshZoom));
+          }
+        }
+        if (ticketRes.status === 'fulfilled' && ticketRes.value.ok) {
+          const freshTickets = await ticketRes.value.json().catch(() => null);
+          if (Array.isArray(freshTickets) && freshTickets.length > 0) {
+            setTickets(prev => mergeRemoteTickets(prev, freshTickets));
           }
         }
       } catch (e) {
@@ -436,13 +531,17 @@ export function DataProvider({ children }) {
 
   // --- TICKETS ---
   const updateTicketStatus = (id, status, user) => {
-    setTickets(prev => prev.map(t => (t.id === id || t.ticketNumber === id) ? { ...t, status, updatedAt: new Date().toISOString() } : t));
+    const patch = { status, updatedAt: new Date().toISOString() };
+    setTickets(prev => prev.map(t => (t.id === id || t.ticketNumber === id) ? { ...t, ...patch } : t));
+    syncChannelRef.current?.postMessage({ type: 'TICKET_UPDATED', payload: { id, ...patch } });
     addAuditLog(user?.id, user?.username || user?.name, 'STATUS_CHANGE', 'Ticket', id, `Changed ticket status to "${status}"`, 'Helpdesk');
     apiCall(`/tickets/${id}/status`, 'PATCH', { status });
   };
 
   const assignTicket = (id, assigneeId, user) => {
-    setTickets(prev => prev.map(t => (t.id === id || t.ticketNumber === id) ? { ...t, assignedTo: assigneeId, status: t.status === 'New' ? 'Assigned' : t.status, reassignmentRequest: null, updatedAt: new Date().toISOString() } : t));
+    const patch = { assignedTo: assigneeId, status: 'Assigned', reassignmentRequest: null, updatedAt: new Date().toISOString() };
+    setTickets(prev => prev.map(t => (t.id === id || t.ticketNumber === id) ? { ...t, ...patch } : t));
+    syncChannelRef.current?.postMessage({ type: 'TICKET_UPDATED', payload: { id, ...patch } });
     addAuditLog(user?.id, user?.username || user?.name, 'ASSIGN', 'Ticket', id, `Assigned ticket to user ${assigneeId}`, 'Helpdesk');
 
     // Send direct assignment alert to assigned member
@@ -462,12 +561,15 @@ export function DataProvider({ children }) {
 
   const submitReassignmentRequest = (ticketId, reason, user) => {
     const request = { id: `RR-${Date.now()}`, requestedBy: user?.id, reason, requestedAt: new Date().toISOString(), status: 'Pending' };
-    setTickets(prev => prev.map(t => (t.id === ticketId || t.ticketNumber === ticketId) ? { ...t, reassignmentRequest: request, updatedAt: new Date().toISOString() } : t));
+    const patch = { reassignmentRequest: request, updatedAt: new Date().toISOString() };
+    setTickets(prev => prev.map(t => (t.id === ticketId || t.ticketNumber === ticketId) ? { ...t, ...patch } : t));
+    syncChannelRef.current?.postMessage({ type: 'TICKET_UPDATED', payload: { id: ticketId, ...patch } });
     addAuditLog(user?.id, user?.username || user?.name, 'REASSIGN_REQUEST', 'Ticket', ticketId, `Submitted reassignment request: ${reason}`, 'Helpdesk');
     apiCall(`/tickets/${ticketId}/reassign`, 'POST', request);
   };
 
   const rejectReassignmentRequest = (ticketId, reason, user) => {
+    let updatedTicket = null;
     setTickets(prev => prev.map(t => {
       if (t.id !== ticketId && t.ticketNumber !== ticketId) return t;
       const updatedReq = t.reassignmentRequest ? {
@@ -477,32 +579,58 @@ export function DataProvider({ children }) {
         rejectedAt: new Date().toISOString(),
         rejectionReason: reason || 'Reassignment request was rejected by IT Admin.'
       } : null;
-      return { ...t, reassignmentRequest: updatedReq, updatedAt: new Date().toISOString() };
+      updatedTicket = { ...t, reassignmentRequest: updatedReq, updatedAt: new Date().toISOString() };
+      return updatedTicket;
     }));
+    if (updatedTicket) {
+      syncChannelRef.current?.postMessage({ type: 'TICKET_UPDATED', payload: updatedTicket });
+    }
     addAuditLog(user?.id, user?.username || user?.name, 'REJECT_REASSIGN', 'Ticket', ticketId, `Rejected reassignment request${reason ? `: ${reason}` : ''}`, 'Helpdesk');
     apiCall(`/tickets/${ticketId}/reassign/reject`, 'PATCH', { reason, rejectedBy: user?.id });
   };
 
   const createTicket = async (ticketData, user) => {
+    const finalStatus = ticketData.status || (ticketData.assignedTo ? 'Assigned' : 'New');
     const newTicket = {
       id: `TKT-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
       ticketNumber: `TKT-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
       ...ticketData,
-      status: 'New',
+      status: finalStatus,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       partsUsed: [],
       reassignmentRequest: null
     };
     setTickets(prev => [newTicket, ...prev]);
+    syncChannelRef.current?.postMessage({ type: 'TICKET_UPDATED', payload: newTicket });
     addAuditLog(user?.id, user?.username || user?.name, 'CREATE', 'Ticket', newTicket.id, `Created new ticket: ${ticketData.title}`, 'Helpdesk');
     
-    const serverResult = await apiCall('/tickets', 'POST', { ...ticketData, requesterId: user?.id });
-    if (serverResult) {
-      setTickets(prev => prev.map(t => t.id === newTicket.id ? serverResult : t));
+    const serverResult = await apiCall('/tickets', 'POST', {
+      ...ticketData,
+      requesterId: user?.id,
+      status: finalStatus
+    });
+    if (serverResult && serverResult.id) {
+      setTickets(prev => prev.map(t => t.id === newTicket.id ? { ...newTicket, ...serverResult } : t));
+      syncChannelRef.current?.postMessage({ type: 'TICKET_UPDATED', payload: { ...newTicket, ...serverResult } });
       return serverResult;
     }
     return newTicket;
+  };
+
+  const deleteTicket = (id, user) => {
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('itsm_deleted_ticket_ids') || '[]');
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem('itsm_deleted_ticket_ids', JSON.stringify(deletedIds));
+      }
+    } catch (e) {}
+
+    setTickets(prev => prev.filter(t => t.id !== id && t.ticketNumber !== id));
+    syncChannelRef.current?.postMessage({ type: 'TICKET_DELETED', payload: { id } });
+    addAuditLog(user?.id, user?.username || user?.name, 'DELETE', 'Ticket', id, `Deleted ticket ${id}`, 'Helpdesk');
+    apiCall(`/tickets/${id}`, 'DELETE');
   };
 
   // --- TASKS ---
@@ -865,7 +993,7 @@ export function DataProvider({ children }) {
       getUser, getAsset, getTicketStats, getTaskStats,
       createAsset,
       updateStockStatus, updateStockQuantity, createStockItem,
-      updateTicketStatus, assignTicket, submitReassignmentRequest, rejectReassignmentRequest, createTicket,
+      updateTicketStatus, assignTicket, submitReassignmentRequest, rejectReassignmentRequest, createTicket, deleteTicket,
       updateTaskStatus, updateSubtaskStatus, createTask,
       createZoomRequest, assignZoomRequest, updateZoomMeetingLink, updateZoomStatus, deleteZoomRequest,
       createUser, updateUserRole, toggleUserActive, resetUserPassword,

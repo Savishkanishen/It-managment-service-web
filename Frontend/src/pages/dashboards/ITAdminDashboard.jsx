@@ -34,6 +34,7 @@ export default function ITAdminDashboard() {
   const {
     tickets, stock, repairs, zoomRequests, users, divisions,
     createUser, resetUserPassword, toggleUserActive, updateZoomMeetingLink, updateZoomStatus, deleteZoomRequest,
+    deleteTicket,
     broadcasts, addBroadcast, toggleBroadcast, removeBroadcast
   } = useData();
   const { addToast } = useNotifications();
@@ -72,9 +73,14 @@ export default function ITAdminDashboard() {
     audience: 'All',
   });
 
+  // Ticket Triage Widget Tab State (Ongoing vs Old/Resolved)
+  const [ticketTab, setTicketTab] = useState('ongoing');
+
   const divisionList = divisions && divisions.length > 0 ? divisions : DIVISIONS;
 
   const stats = getTicketStats(tickets);
+  const ongoingTickets = tickets.filter(t => ['New', 'Assigned', 'In Progress', 'Pending Parts'].includes(t.status));
+  const oldTickets = tickets.filter(t => ['Resolved', 'Closed'].includes(t.status));
   const pendingReassign = tickets.filter(t => t.reassignmentRequest?.status === 'Pending');
   const overdueRepairs = repairs.filter(r => r.status === 'Overdue');
   const lowStock = stock.filter(s => ['Low Stock', 'Not Available'].includes(s.status));
@@ -435,25 +441,91 @@ export default function ITAdminDashboard() {
       <div className="card-grid">
         {/* Ticket Triage */}
         <div className="card">
-          <div className="card-header">
-            <span className="card-title">Helpdesk Ticket Triage</span>
-            <Link to="/helpdesk" className="btn btn-ghost btn-sm"><ArrowRight size={14} /></Link>
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="card-title">Helpdesk Tickets</span>
+              <div style={{ display: 'inline-flex', background: 'var(--gray-100)', borderRadius: 'var(--radius-md)', padding: 2 }}>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${ticketTab === 'ongoing' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ fontSize: '0.72rem', padding: '2px 8px', height: 'auto' }}
+                  onClick={() => setTicketTab('ongoing')}
+                >
+                  Ongoing ({ongoingTickets.length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${ticketTab === 'old' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ fontSize: '0.72rem', padding: '2px 8px', height: 'auto' }}
+                  onClick={() => setTicketTab('old')}
+                >
+                  Old / Resolved ({oldTickets.length})
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Link to="/helpdesk/new" className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.74rem', padding: '4px 10px' }}>
+                <Plus size={13} /> Log Ticket
+              </Link>
+              <Link to="/helpdesk" className="btn btn-ghost btn-sm" title="View All Tickets in Helpdesk">
+                <ArrowRight size={14} />
+              </Link>
+            </div>
           </div>
           <div className="table-scroll">
             <table>
               <thead>
-                <tr><th>ID</th><th>Title</th><th>Category</th><th>Priority</th><th>Status</th></tr>
+                <tr>
+                  <th>ID</th>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
               </thead>
               <tbody>
-                {tickets.filter(t => ['New', 'Assigned', 'In Progress', 'Pending Parts'].includes(t.status)).slice(0, 5).map(t => (
-                  <tr key={t.id}>
-                    <td><Link to={`/helpdesk/${t.id}`} style={{ color: 'var(--teal-600)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.78rem' }}>{t.id}</Link></td>
-                    <td style={{ maxWidth: 180 }}><span className="truncate" style={{ display: 'block' }}>{t.title}</span></td>
-                    <td><CategoryBadge category={t.category} /></td>
-                    <td><PriorityBadge priority={t.priority} /></td>
-                    <td><Badge status={t.status} /></td>
+                {(ticketTab === 'ongoing' ? ongoingTickets : oldTickets).length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: 'var(--gray-400)', fontSize: '0.8rem' }}>
+                      No {ticketTab === 'ongoing' ? 'ongoing' : 'old or resolved'} tickets.
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  (ticketTab === 'ongoing' ? ongoingTickets : oldTickets).slice(0, 6).map(t => (
+                    <tr key={t.id}>
+                      <td>
+                        <Link to={`/helpdesk/${t.id}`} style={{ color: 'var(--teal-600)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.78rem' }}>
+                          {t.ticketNumber || t.id}
+                        </Link>
+                      </td>
+                      <td style={{ maxWidth: 170 }}><span className="truncate" style={{ display: 'block' }}>{t.title}</span></td>
+                      <td><CategoryBadge category={t.category} /></td>
+                      <td><PriorityBadge priority={t.priority} /></td>
+                      <td><Badge status={t.status} /></td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          <Link to={`/helpdesk/${t.id}`} className="btn btn-secondary btn-sm" style={{ padding: '3px 8px', fontSize: '0.72rem' }}>
+                            View
+                          </Link>
+                          <button
+                            className="icon-btn"
+                            style={{ width: 26, height: 26, color: 'var(--danger-500)' }}
+                            onClick={() => {
+                              if (window.confirm(`Delete ticket ${t.ticketNumber || t.id} (${t.title})?`)) {
+                                deleteTicket(t.id, currentUser);
+                                addToast('warning', 'Ticket Deleted', `Ticket ${t.ticketNumber || t.id} removed.`);
+                              }
+                            }}
+                            title="Delete ticket"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

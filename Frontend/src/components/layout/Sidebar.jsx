@@ -152,6 +152,9 @@ export default function Sidebar() {
 
             <NavSection label="Service Desk">
               <NavItem to="/helpdesk" icon={Ticket} label="Helpdesk Tickets" badge={helpdeskBadge} />
+              {(isSuperAdmin || isITAdmin) && (
+                <NavItem to="/helpdesk/new" icon={Ticket} label="New Ticket" />
+              )}
               <NavItem to="/repairs" icon={Wrench} label="External Repairs" />
             </NavSection>
 
