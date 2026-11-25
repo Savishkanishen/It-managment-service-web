@@ -30,6 +30,7 @@ export default function RepairListPage() {
   const [closingRepair, setClosingRepair] = useState(null);
   const [quickCloseForm, setQuickCloseForm] = useState({ whatReplaced: '', totalCost: '', notes: '' });
   const [closingSubmitting, setClosingSubmitting] = useState(false);
+  const [creatingSubmitting, setCreatingSubmitting] = useState(false);
 
   const overdueCount = repairs.filter(r => r.status === 'Overdue').length;
   const activeCount = repairs.filter(r => r.status === 'Active').length;
@@ -42,12 +43,14 @@ export default function RepairListPage() {
   });
 
   const handleCreate = async () => {
+    if (creatingSubmitting) return;
     if (!form.assetId || !form.vendorId || !form.forReason || !form.dispatchDate) {
       addToast('error', 'Missing Fields', 'Please fill required fields including Asset, Vendor, Dispatch Date, and Repair Purpose');
       return;
     }
     const asset = assets.find(a => a.id === form.assetId);
     const vendor = vendors.find(v => v.id === form.vendorId);
+    setCreatingSubmitting(true);
     try {
       await createRepair({
         ...form,
@@ -64,6 +67,8 @@ export default function RepairListPage() {
       setForm({ assetId: '', vendorId: '', dispatchDate: '', expectedReturn: '', gatePass: '', forReason: '', initialDiagnosis: '' });
     } catch (err) {
       addToast('error', 'Error', 'Failed to dispatch repair');
+    } finally {
+      setCreatingSubmitting(false);
     }
   };
 
@@ -90,21 +95,24 @@ export default function RepairListPage() {
     {
       key: 'id',
       label: 'Repair ID',
-      render: v => (
-        <Link
-          to={`/repairs/${v}`}
-          style={{
-            fontFamily: 'JetBrains Mono, monospace',
-            color: '#253745',
-            fontWeight: 700,
-            fontSize: '0.8rem',
-            textDecoration: 'underline',
-            textUnderlineOffset: 3
-          }}
-        >
-          {v}
-        </Link>
-      )
+      render: (v, row) => {
+        const cleanId = row.referenceNumber || v;
+        return (
+          <Link
+            to={`/repairs/${cleanId}`}
+            style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              color: '#253745',
+              fontWeight: 700,
+              fontSize: '0.8rem',
+              textDecoration: 'underline',
+              textUnderlineOffset: 3
+            }}
+          >
+            {cleanId}
+          </Link>
+        );
+      }
     },
     {
       key: 'assetTag',
@@ -183,7 +191,7 @@ export default function RepairListPage() {
             </button>
           )}
           <Link
-            to={`/repairs/${row.id}`}
+            to={`/repairs/${row.referenceNumber || row.id}`}
             className="btn btn-secondary btn-sm"
             style={{ fontSize: '0.75rem', padding: '4px 8px' }}
           >
@@ -338,9 +346,9 @@ export default function RepairListPage() {
         size="lg"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setShowNewModal(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleCreate} style={{ background: '#253745', borderColor: '#253745' }}>
-              <Wrench size={14} /> Dispatch for Repair
+            <button className="btn btn-secondary" onClick={() => setShowNewModal(false)} disabled={creatingSubmitting}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleCreate} disabled={creatingSubmitting} style={{ background: '#253745', borderColor: '#253745' }}>
+              <Wrench size={14} /> {creatingSubmitting ? 'Dispatching...' : 'Dispatch for Repair'}
             </button>
           </>
         }

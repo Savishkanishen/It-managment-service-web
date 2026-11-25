@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
@@ -15,32 +15,39 @@ export default function TaskDetailPage() {
   const { currentUser } = useAuth();
   const { addToast } = useNotifications();
   const [showHoldModal, setShowHoldModal] = useState(false);
+  const [remoteTask, setRemoteTask] = useState(null);
+  const [loadingRemote, setLoadingRemote] = useState(false);
 
-  const task = tasks.find(t => t.id === id);
-  if (!task) return <div style={{ padding:40, textAlign:'center', color:'var(--gray-400)' }}>Task not found</div>;
+  const task = tasks.find(t => t.id === id || t.taskNumber === id || t.dbId === id) || remoteTask;
 
-  const canManageTasks = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser.role);
-  if (!canManageTasks && !isTaskAssignedToUser(task, currentUser)) {
-    return (
-      <div style={{ padding: 48, textAlign: 'center' }}>
-        <div style={{ display: 'inline-flex', padding: '16px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '50%', color: 'var(--danger-500)', marginBottom: '16px' }}>
-          <Lock size={32} />
-        </div>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px' }}>Private Work Item</h2>
-        <p style={{ color: 'var(--gray-500)', maxWidth: 440, margin: '0 auto 20px', fontSize: '0.875rem' }}>
-          This task is assigned to another member. You do not have permission to view other members' assigned works.
-        </p>
-        <Link to="/tasks/list" className="btn btn-secondary">Back to Task List</Link>
-      </div>
-    );
+  useEffect(() => {
+    if (!tasks.some(t => t.id === id || t.taskNumber === id || t.dbId === id)) {
+      setLoadingRemote(true);
+      fetch(`http://localhost:5000/api/tasks/${id}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) setRemoteTask(data);
+          setLoadingRemote(false);
+        })
+        .catch(() => setLoadingRemote(false));
+    }
+  }, [id, tasks]);
+
+  if (loadingRemote && !task) {
+    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>Loading task details...</div>;
   }
+  if (!task) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>Task not found</div>;
+
+  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser?.role) || currentUser?.username?.toLowerCase() === 'admin';
+  const isTrainee = currentUser?.role === ROLES.TRAINEE || currentUser?.role?.toLowerCase()?.includes('trainee');
+  const canManageTasks = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser?.role) || isAdmin;
+  const isAssignee = isTaskAssignedToUser(task, currentUser);
+  const isITStaff = currentUser?.division === 'IT Department' || ['super_admin', 'it_admin', 'it_officer', 'trainee'].includes(currentUser?.role?.toLowerCase());
 
   const progress = calcTaskProgress(task);
   const assignees = (task.assignees || []).map(id => getUser(id)).filter(Boolean);
-  const isAssignee = (task.assignees || []).includes(currentUser.id);
-  const isTrainee = currentUser.role === ROLES.TRAINEE;
 
-  const canEditStatus = canManageTasks || isAssignee || isTrainee;
+  const canEditStatus = canManageTasks || isAssignee || isITStaff;
 
   const handleSubtaskToggle = (subtask) => {
     const newStatus = subtask.status === 'Completed' ? 'In Progress' : 'Completed';

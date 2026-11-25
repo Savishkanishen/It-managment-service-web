@@ -24,14 +24,13 @@ export default function TaskBoardPage() {
   const { addToast } = useNotifications();
   const [pendingDragTask, setPendingDragTask] = useState(null);
 
-  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role) || currentUser.username?.toLowerCase() === 'admin';
-  const canManageTasks = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser.role);
+  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser?.role) || currentUser?.username?.toLowerCase() === 'admin';
+  const canManageTasks = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser?.role) || isAdmin;
+  const [boardFilter, setBoardFilter] = useState('all'); // 'all' | 'mine'
   
-  // Non-admins see their assigned active tasks (Completed tasks are hidden from non-admin boards).
-  // Admins see all tasks across all stages including Completed archives.
-  const visibleTasks = isAdmin
-    ? tasks
-    : tasks.filter(t => isTaskAssignedToUser(t, currentUser) && t.status !== 'Completed' && t.status !== 'Cancelled');
+  const visibleTasks = boardFilter === 'mine'
+    ? tasks.filter(t => isTaskAssignedToUser(t, currentUser))
+    : tasks;
 
   const grouped = COLUMNS.reduce((acc, col) => {
     acc[col.id] = visibleTasks.filter(t => t.status === col.id);
@@ -43,7 +42,7 @@ export default function TaskBoardPage() {
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
     const newStatus = destination.droppableId;
-    const targetTask = tasks.find(t => t.id === draggableId);
+    const targetTask = tasks.find(t => t.id === draggableId || t.taskNumber === draggableId);
 
     if (newStatus === 'On Hold' || newStatus === 'Hold') {
       setPendingDragTask({ task: targetTask, newStatus });
@@ -72,30 +71,48 @@ export default function TaskBoardPage() {
           <p>Drag and drop tasks to update their status (To Do, In Progress, Ongoing, On Hold, Completed)</p>
         </div>
         <div className="page-header-actions">
+          <div style={{ display: 'flex', gap: 6, background: 'var(--gray-100)', padding: 3, borderRadius: 'var(--radius-md)' }}>
+            <button
+              type="button"
+              onClick={() => setBoardFilter('all')}
+              style={{
+                border: 'none',
+                background: boardFilter === 'all' ? 'white' : 'transparent',
+                fontWeight: boardFilter === 'all' ? 700 : 500,
+                color: boardFilter === 'all' ? 'var(--teal-700)' : 'var(--gray-600)',
+                padding: '4px 10px',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                boxShadow: boardFilter === 'all' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
+              }}
+            >
+              All Tasks ({tasks.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setBoardFilter('mine')}
+              style={{
+                border: 'none',
+                background: boardFilter === 'mine' ? 'white' : 'transparent',
+                fontWeight: boardFilter === 'mine' ? 700 : 500,
+                color: boardFilter === 'mine' ? 'var(--teal-700)' : 'var(--gray-600)',
+                padding: '4px 10px',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                boxShadow: boardFilter === 'mine' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
+              }}
+            >
+              My Tasks ({tasks.filter(t => isTaskAssignedToUser(t, currentUser)).length})
+            </button>
+          </div>
           <Link to="/tasks/list" className="btn btn-secondary btn-sm">List View</Link>
           <Link to="/tasks/calendar" className="btn btn-secondary btn-sm"><Calendar size={14} /> Calendar</Link>
         </div>
       </div>
 
-      {!canManageTasks && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          background: 'rgba(6, 182, 212, 0.08)',
-          border: '1px solid rgba(6, 182, 212, 0.25)',
-          borderRadius: 'var(--radius-md)',
-          padding: '10px 14px',
-          marginBottom: '16px',
-          fontSize: '0.82rem',
-          color: 'var(--teal-700)'
-        }}>
-          <Lock size={15} color="var(--teal-600)" style={{ flexShrink: 0 }} />
-          <span>
-            <strong>Private Board:</strong> Displaying only tasks assigned directly to you. Other members' assigned works are private.
-          </span>
-        </div>
-      )}
+
 
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="kanban-board">

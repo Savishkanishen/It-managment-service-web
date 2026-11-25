@@ -129,6 +129,7 @@ export default function AppRoutes() {
         <Route path="publications" element={<PublicationPage />} />
 
         {/* Task Management */}
+        <Route path="tasks" element={<Navigate to="/tasks/list" replace />} />
         <Route path="tasks/board" element={<TaskBoardPage />} />
         <Route path="tasks/list" element={<TaskListPage />} />
         <Route path="tasks/calendar" element={<TaskCalendarPage />} />

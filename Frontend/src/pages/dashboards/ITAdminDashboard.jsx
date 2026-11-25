@@ -651,9 +651,12 @@ export default function ITAdminDashboard() {
           </div>
           <div className="card-body" style={{ paddingTop: 8 }}>
             {repairs.map(r => (
-              <div key={r.id} className={`stock-card${r.status === 'Overdue' ? ' out-of-stock' : ''}`} style={{ marginBottom: 12, padding: '14px 16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{r.assetTag}</span>
+              <div key={r.id || r.referenceNumber} className={`stock-card${r.status === 'Overdue' ? ' out-of-stock' : ''}`} style={{ marginBottom: 12, padding: '14px 16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' }}>
+                  <Link to={`/repairs/${r.referenceNumber || r.id}`} style={{ fontWeight: 700, fontSize: '0.85rem', color: '#06141B', textDecoration: 'none' }}>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#253745', marginRight: 6 }}>{r.referenceNumber || r.id}</span>
+                    <span style={{ color: '#4A5C6A' }}>({r.assetTag})</span>
+                  </Link>
                   <Badge status={r.status} />
                 </div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--gray-600)', marginBottom: 4 }}>

@@ -20,8 +20,8 @@ export default function RepairDetailPage() {
   const [remoteRepair, setRemoteRepair] = useState(null);
   const [loadingRemote, setLoadingRemote] = useState(false);
 
-  // Look in local state first
-  const repair = repairs.find(r => r.id === id || r.referenceNumber === id);
+  // Look in local state first (matches by Year-Month-Date-Number id, referenceNumber, or DB UUID)
+  const repair = repairs.find(r => r.id === id || r.referenceNumber === id || r.dbId === id || r.uuid === id);
 
   // Fallback direct API fetch if not found in state on direct load
   useEffect(() => {
@@ -143,7 +143,7 @@ export default function RepairDetailPage() {
           </div>
           <div className="detail-meta" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
             <span className="id-chip" style={{ fontFamily: 'JetBrains Mono, monospace', background: '#F1F5F9', padding: '3px 8px', borderRadius: 4, fontSize: '0.8rem', color: '#11212D', fontWeight: 600 }}>
-              {activeRepair.id}
+              {activeRepair.referenceNumber || activeRepair.id}
             </span>
             <span className="id-chip" style={{ fontFamily: 'JetBrains Mono, monospace', background: '#E2E8F0', padding: '3px 8px', borderRadius: 4, fontSize: '0.8rem', color: '#253745', fontWeight: 600 }}>
               {activeRepair.assetTag}

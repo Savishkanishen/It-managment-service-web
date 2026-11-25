@@ -20,9 +20,8 @@ export default function MyTasksPage() {
 
   const myTasks = tasks.filter(t => isTaskAssignedToUser(t, currentUser));
   const mySubtasks = myTasks.flatMap(t => (t.subtasks || []).filter(s => {
-    const sAss = String(s.assignee || '').toLowerCase();
-    return sAss === uid || sAss === uname;
-  }).map(s => ({ ...s, taskId: t.id, taskTitle: t.title })));
+    return isTaskAssignedToUser({ assignees: [s.assignee] }, currentUser);
+  }).map(s => ({ ...s, taskId: t.taskNumber || t.id, taskTitle: t.title })));
 
   const today = new Date();
   const active = myTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');

@@ -181,12 +181,45 @@ export const setDynamicAssets = (assets) => {
   if (Array.isArray(assets) && assets.length > 0) dynamicAssets = assets;
 };
 
+export const USER_UUID_MAP = {
+  '22222222-2222-2222-2222-222222222201': ['u003', 'sachin'],
+  '22222222-2222-2222-2222-222222222202': ['u004', 'hirantha'],
+  '22222222-2222-2222-2222-222222222203': ['u005', 'shalom'],
+  '22222222-2222-2222-2222-222222222204': ['u006', 'savishka'],
+  'cf9ee99c-d1dc-4805-8b25-69909a366d58': ['u000', 'u002', 'admin', 'itadmin'],
+  'ed08ee60-c54b-40f5-8273-34c5439eaa8b': ['u001', 'superadmin'],
+  '11111111-1111-1111-1111-111111111101': ['u007', 'zoomrequester'],
+  '11111111-1111-1111-1111-111111111102': ['u008', 'itofficer'],
+};
+
 export const getUser = (id) => {
   if (!id) return null;
-  const found = dynamicUsers.find(u => u.id === id || u.username?.toLowerCase() === id.toLowerCase() || u.name?.toLowerCase() === id.toLowerCase())
-    || USERS.find(u => u.id === id || u.username?.toLowerCase() === id.toLowerCase() || u.name?.toLowerCase() === id.toLowerCase());
+  const idStr = String(id).toLowerCase();
+  const mappedAliases = USER_UUID_MAP[idStr] || [];
+
+  const found = dynamicUsers.find(u => 
+    u.id?.toLowerCase() === idStr || 
+    u.username?.toLowerCase() === idStr || 
+    u.name?.toLowerCase() === idStr ||
+    mappedAliases.includes(u.id?.toLowerCase()) ||
+    mappedAliases.includes(u.username?.toLowerCase())
+  ) || USERS.find(u => 
+    u.id?.toLowerCase() === idStr || 
+    u.username?.toLowerCase() === idStr || 
+    u.name?.toLowerCase() === idStr ||
+    mappedAliases.includes(u.id?.toLowerCase()) ||
+    mappedAliases.includes(u.username?.toLowerCase())
+  );
   if (found) return found;
-  return { id, name: id, username: id, role: 'trainee', email: `${id}@mohe.gov.mv`, division: 'IT Department' };
+
+  // If mapped to a known username alias
+  if (mappedAliases.length > 0) {
+    const alias = mappedAliases[1] || mappedAliases[0];
+    const capitalized = alias.charAt(0).toUpperCase() + alias.slice(1);
+    return { id, name: capitalized, username: alias, role: 'trainee', email: `${alias}@mohe.gov.mv`, division: 'IT Department' };
+  }
+
+  return { id, name: id.length > 15 ? `Staff (${id.slice(0, 6)})` : id, username: id, role: 'trainee', email: `${id}@mohe.gov.mv`, division: 'IT Department' };
 };
 
 export const getAsset = (id) => {
@@ -222,7 +255,8 @@ export const getTicketStats = (customTickets = null) => {
 
 export const getTaskStats = (userId = null, customTasks = null) => {
   const source = customTasks && customTasks.length > 0 ? customTasks : TASKS;
-  const tasks = userId ? source.filter(t => (t.assignees || []).includes(userId)) : source;
+  const userObj = typeof userId === 'object' ? userId : (userId ? { id: userId, username: userId } : null);
+  const tasks = userObj ? source.filter(t => isTaskAssignedToUser(t, userObj)) : source;
   const today = new Date();
   return {
     total: tasks.length,
@@ -280,18 +314,26 @@ export const isTaskAssignedToUser = (task, user) => {
   const uname = String(user.username || '').toLowerCase();
   const uName = String(user.name || '').toLowerCase();
 
-  const inAssignees = (task.assignees || []).some(a => {
-    const str = String(a || '').toLowerCase();
-    return str === uid || str === uname || str === uName;
-  });
+  const userKeys = [uid, uname, uName].filter(Boolean);
+  // Add mapped UUIDs if any
+  for (const [uuid, aliases] of Object.entries(USER_UUID_MAP)) {
+    if (aliases.some(a => userKeys.includes(a))) {
+      userKeys.push(uuid.toLowerCase());
+    }
+  }
 
-  const inSubtasks = (task.subtasks || []).some(s => {
-    const str = String(s?.assignee || '').toLowerCase();
-    return str === uid || str === uname || str === uName;
-  });
+  const matchesUser = (assigneeVal) => {
+    if (!assigneeVal) return false;
+    const str = String(assigneeVal).toLowerCase();
+    if (userKeys.includes(str)) return true;
+    const mapped = USER_UUID_MAP[str];
+    if (mapped && mapped.some(a => userKeys.includes(a))) return true;
+    return false;
+  };
 
-  const isCreator = String(task.createdBy || '').toLowerCase() === uid
-    || String(task.createdBy || '').toLowerCase() === uname;
+  const inAssignees = (task.assignees || []).some(matchesUser);
+  const inSubtasks = (task.subtasks || []).some(s => matchesUser(s?.assignee));
+  const isCreator = matchesUser(task.createdBy);
 
   return inAssignees || inSubtasks || isCreator;
 };

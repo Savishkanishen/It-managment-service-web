@@ -6,35 +6,51 @@ import DataTable from '../../components/ui/DataTable';
 import { Badge, PriorityBadge } from '../../components/ui/Badge';
 import ProgressBar from '../../components/ui/ProgressBar';
 import HoldReasonModal from '../../components/ui/HoldReasonModal';
-import { calcTaskProgress, getUser, ROLES, isTaskAssignedToUser } from '../../data/mockData';
-import { Search, Plus, Kanban, Calendar, Lock } from 'lucide-react';
+import { calcTaskProgress, getUser, ROLES, isTaskAssignedToUser, USERS } from '../../data/mockData';
+import { Search, Plus, Kanban, Calendar, CheckCircle2, Clock, UserCheck, Layers } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import { useNotifications } from '../../context/NotificationContext';
-import { USERS } from '../../data/mockData';
 
 export default function TaskListPage() {
   const { tasks, users, createTask, updateTaskStatus } = useData();
   const { currentUser } = useAuth();
   const { addToast } = useNotifications();
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'active' | 'mine' | 'completed'
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [showNew, setShowNew] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [holdModalTask, setHoldModalTask] = useState(null);
-  const [form, setForm] = useState({ title: '', description: '', priority: 'Medium', status: 'To Do', startDate: '', dueDate: '', assignees: [], project: '' });
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    priority: 'Medium',
+    status: 'To Do',
+    startDate: '',
+    dueDate: '',
+    assignees: [],
+    project: ''
+  });
 
-  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser.role) || currentUser.username?.toLowerCase() === 'admin';
-  const canManageTasks = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser.role);
+  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser?.role) || currentUser?.username?.toLowerCase() === 'admin';
 
-  // Privacy & Lifecycle Rule:
-  // Non-admins (Trainees, Officers) only see active tasks assigned to them (Completed tasks are hidden from their workspace).
-  // Admins can see all tasks including Completed and Cancelled archives.
-  const visibleTasks = isAdmin
-    ? tasks
-    : tasks.filter(t => isTaskAssignedToUser(t, currentUser) && t.status !== 'Completed' && t.status !== 'Cancelled');
+  // Filter tasks according to active tab
+  const tabFilteredTasks = tasks.filter(t => {
+    if (activeTab === 'active') {
+      return t.status !== 'Completed' && t.status !== 'Cancelled';
+    }
+    if (activeTab === 'mine') {
+      return isTaskAssignedToUser(t, currentUser);
+    }
+    if (activeTab === 'completed') {
+      return t.status === 'Completed' || t.status === 'Cancelled';
+    }
+    return true; // 'all'
+  });
 
-  const filtered = visibleTasks.filter(t => {
-    const matchSearch = !search || [t.id, t.title, t.project].some(v => v?.toLowerCase().includes(search.toLowerCase()));
+  const filtered = tabFilteredTasks.filter(t => {
+    const matchSearch = !search || [t.id, t.taskNumber, t.title, t.project].some(v => v?.toLowerCase().includes(search.toLowerCase()));
     const matchStatus = statusFilter === 'All'
       ? true
       : statusFilter === 'Pending'
@@ -66,23 +82,70 @@ export default function TaskListPage() {
     setHoldModalTask(null);
   };
 
-  const handleCreate = () => {
-    if (!form.title || !form.dueDate) { addToast('error', 'Required', 'Title and due date are required'); return; }
-    createTask({ ...form, createdBy: currentUser.id, department: 'IT Department' }, currentUser);
-    addToast('success', 'Task Created', `Task "${form.title}" has been created`);
-    setShowNew(false);
-    setForm({ title: '', description: '', priority: 'Medium', status: 'To Do', startDate: '', dueDate: '', assignees: [], project: '' });
+  const handleCreate = async () => {
+    if (!form.title.trim()) {
+      addToast('error', 'Required Field', 'Please provide a task title');
+      return;
+    }
+
+    const defaultDueDate = form.dueDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+    const defaultStartDate = form.startDate || new Date().toISOString().split('T')[0];
+
+    setIsSubmitting(true);
+    try {
+      await createTask({
+        ...form,
+        title: form.title.trim(),
+        startDate: defaultStartDate,
+        dueDate: defaultDueDate,
+        createdBy: currentUser?.id,
+        department: 'IT Department',
+      }, currentUser);
+
+      addToast('success', 'Task Created', `Task "${form.title}" has been saved and synchronized in real time.`);
+      setShowNew(false);
+      setForm({ title: '', description: '', priority: 'Medium', status: 'To Do', startDate: '', dueDate: '', assignees: [], project: '' });
+    } catch (err) {
+      console.error('Error creating task:', err);
+      addToast('error', 'Creation Error', 'Could not create task: ' + (err.message || 'Server error'));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const toggleAssignee = (id) => setForm(f => ({ ...f, assignees: f.assignees.includes(id) ? f.assignees.filter(a => a !== id) : [...f.assignees, id] }));
+  const toggleAssignee = (id) => {
+    setForm(f => ({
+      ...f,
+      assignees: f.assignees.includes(id) ? f.assignees.filter(a => a !== id) : [...f.assignees, id]
+    }));
+  };
+
+  const allUsers = users && users.length > 0 ? users : USERS;
+  const technicians = allUsers.filter(u => {
+    const r = (u.role || u.roleName || '').toLowerCase();
+    return r.includes('admin') || r.includes('officer') || r.includes('trainee') || r.includes('intern') || !r;
+  });
 
   const columns = [
-    { key: 'id', label: 'Task ID', render: v => <Link to={`/tasks/${v}`} style={{ fontFamily: 'JetBrains Mono,monospace', color: 'var(--teal-600)', fontWeight: 600, fontSize: '0.8rem' }}>{v}</Link> },
     {
-      key: 'title', label: 'Task', render: (v, row) => (
+      key: 'id',
+      label: 'Task ID',
+      render: (v, row) => (
+        <Link
+          to={`/tasks/${row.taskNumber || v}`}
+          style={{ fontFamily: 'JetBrains Mono,monospace', color: 'var(--teal-600)', fontWeight: 600, fontSize: '0.8rem' }}
+        >
+          {row.taskNumber || v}
+        </Link>
+      )
+    },
+    {
+      key: 'title',
+      label: 'Task',
+      render: (v, row) => (
         <div>
           <div style={{ fontWeight: 600, marginBottom: 2 }}>{v}</div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--gray-400)' }}>{row.project}</div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--gray-400)' }}>{row.project || 'General'}</div>
           {(row.status === 'On Hold' || row.status === 'Hold') && row.holdReason && (
             <div style={{ fontSize: '0.7rem', color: '#c2410c', marginTop: 3 }}>Reason: {row.holdReason}</div>
           )}
@@ -92,11 +155,13 @@ export default function TaskListPage() {
     },
     { key: 'priority', label: 'Priority', render: v => <PriorityBadge priority={v} /> },
     {
-      key: 'status', label: 'Status', render: (v, row) => (
+      key: 'status',
+      label: 'Status',
+      render: (v, row) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <select
             className="filter-input"
-            style={{ padding: '3px 6px', fontSize: '0.75rem', fontWeight: 600 }}
+            style={{ padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600, borderRadius: 'var(--radius-sm)' }}
             value={row.status === 'On Hold' ? 'Pending' : row.status}
             onChange={(e) => handleStatusChange(row, e.target.value)}
           >
@@ -111,131 +176,385 @@ export default function TaskListPage() {
       )
     },
     {
-      key: 'assignees', label: 'Assignees', render: v => (
+      key: 'assignees',
+      label: 'Assignees',
+      render: v => (
         <div className="avatar-stack">
-          {(v || []).slice(0, 3).map(id => { const u = getUser(id); return u ? <div key={id} className="avatar avatar-sm" style={{ background: 'var(--teal-500)' }} title={u.name}>{u.name.slice(0, 2)}</div> : null; })}
-          {(v || []).length > 3 && <div className="avatar avatar-sm" style={{ background: 'var(--gray-400)' }}>+{(v || []).length - 3}</div>}
+          {(v || []).slice(0, 3).map(id => {
+            const u = getUser(id);
+            return u ? (
+              <div
+                key={id}
+                className="avatar avatar-sm"
+                style={{ background: 'var(--teal-500)' }}
+                title={`${u.name} (${u.role || 'Staff'})`}
+              >
+                {(u.avatar || u.name.slice(0, 2)).toUpperCase()}
+              </div>
+            ) : null;
+          })}
+          {(v || []).length > 3 && (
+            <div className="avatar avatar-sm" style={{ background: 'var(--gray-400)' }}>
+              +{(v || []).length - 3}
+            </div>
+          )}
+          {(!v || v.length === 0) && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--gray-400)', fontStyle: 'italic' }}>Unassigned</span>
+          )}
         </div>
       )
     },
     {
-      key: 'dueDate', label: 'Due Date', render: (v, row) => {
-        const overdue = new Date(v) < new Date() && row.status !== 'Completed';
-        return <span style={{ fontSize: '0.8rem', color: overdue ? 'var(--danger-500)' : 'var(--gray-600)', fontWeight: overdue ? 700 : 400 }}>{overdue ? '⚠ ' : ''}{v}</span>;
+      key: 'dueDate',
+      label: 'Due Date',
+      render: (v, row) => {
+        const overdue = v && new Date(v) < new Date() && row.status !== 'Completed';
+        return (
+          <span style={{ fontSize: '0.8rem', color: overdue ? 'var(--danger-500)' : 'var(--gray-600)', fontWeight: overdue ? 700 : 400 }}>
+            {overdue ? '⚠ ' : ''}{v || '—'}
+          </span>
+        );
       }
     },
-    { key: 'id', label: '', sortable: false, render: v => <Link to={`/tasks/${v}`} className="btn btn-secondary btn-sm">View</Link> },
+    {
+      key: 'id',
+      label: '',
+      sortable: false,
+      render: (v, row) => (
+        <Link to={`/tasks/${row.taskNumber || v}`} className="btn btn-secondary btn-sm">
+          View
+        </Link>
+      )
+    },
   ];
 
-  const technicians = (users && users.length > 0 ? users : USERS).filter(u => [ROLES.IT_ADMIN, ROLES.IT_OFFICER, ROLES.TRAINEE].includes(u.role));
+  // Tab counts
+  const countAll = tasks.length;
+  const countActive = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+  const countMine = tasks.filter(t => isTaskAssignedToUser(t, currentUser)).length;
+  const countCompleted = tasks.filter(t => t.status === 'Completed' || t.status === 'Cancelled').length;
 
   return (
     <div>
       <div className="page-header">
-        <div className="page-header-left"><h1>Task List</h1><p>All IT Department tasks sorted and filtered</p></div>
+        <div className="page-header-left">
+          <h1>Task List</h1>
+          <p>All IT Department tasks sorted, filtered, and synchronized real-time with PostgreSQL database</p>
+        </div>
         <div className="page-header-actions">
           <Link to="/tasks/board" className="btn btn-secondary btn-sm"><Kanban size={14} /> Board</Link>
           <Link to="/tasks/calendar" className="btn btn-secondary btn-sm"><Calendar size={14} /> Calendar</Link>
-          {canManageTasks && <button className="btn btn-primary" onClick={() => setShowNew(true)}><Plus size={15} /> New Task</button>}
+          <button className="btn btn-primary" onClick={() => setShowNew(true)}>
+            <Plus size={15} /> New Task
+          </button>
         </div>
       </div>
 
-      {!canManageTasks && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          background: 'rgba(6, 182, 212, 0.08)',
-          border: '1px solid rgba(6, 182, 212, 0.25)',
-          borderRadius: 'var(--radius-md)',
-          padding: '10px 14px',
-          marginBottom: '16px',
-          fontSize: '0.82rem',
-          color: 'var(--teal-700)'
-        }}>
-          <Lock size={15} color="var(--teal-600)" style={{ flexShrink: 0 }} />
-          <span>
-            <strong>Private Workspace:</strong> You only see tasks assigned directly to you. Other members' assigned works are private.
+      {/* Navigation Tabs */}
+      <div style={{
+        display: 'flex',
+        gap: '8px',
+        marginBottom: '16px',
+        borderBottom: '1px solid var(--border-color)',
+        paddingBottom: '8px',
+        flexWrap: 'wrap'
+      }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab('all')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '7px 14px',
+            borderRadius: 'var(--radius-md)',
+            border: activeTab === 'all' ? '1px solid var(--teal-500)' : '1px solid transparent',
+            background: activeTab === 'all' ? 'rgba(6, 182, 212, 0.12)' : 'transparent',
+            color: activeTab === 'all' ? 'var(--teal-700)' : 'var(--gray-600)',
+            fontWeight: activeTab === 'all' ? 700 : 500,
+            fontSize: '0.85rem',
+            cursor: 'pointer'
+          }}
+        >
+          <Layers size={15} />
+          All Department Tasks
+          <span style={{
+            background: activeTab === 'all' ? 'var(--teal-500)' : 'var(--gray-200)',
+            color: activeTab === 'all' ? 'white' : 'var(--gray-600)',
+            fontSize: '0.72rem',
+            padding: '1px 6px',
+            borderRadius: '10px'
+          }}>
+            {countAll}
           </span>
-        </div>
-      )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('active')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '7px 14px',
+            borderRadius: 'var(--radius-md)',
+            border: activeTab === 'active' ? '1px solid var(--teal-500)' : '1px solid transparent',
+            background: activeTab === 'active' ? 'rgba(6, 182, 212, 0.12)' : 'transparent',
+            color: activeTab === 'active' ? 'var(--teal-700)' : 'var(--gray-600)',
+            fontWeight: activeTab === 'active' ? 700 : 500,
+            fontSize: '0.85rem',
+            cursor: 'pointer'
+          }}
+        >
+          <Clock size={15} />
+          Active Tasks
+          <span style={{
+            background: activeTab === 'active' ? 'var(--teal-500)' : 'var(--gray-200)',
+            color: activeTab === 'active' ? 'white' : 'var(--gray-600)',
+            fontSize: '0.72rem',
+            padding: '1px 6px',
+            borderRadius: '10px'
+          }}>
+            {countActive}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('mine')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '7px 14px',
+            borderRadius: 'var(--radius-md)',
+            border: activeTab === 'mine' ? '1px solid var(--teal-500)' : '1px solid transparent',
+            background: activeTab === 'mine' ? 'rgba(6, 182, 212, 0.12)' : 'transparent',
+            color: activeTab === 'mine' ? 'var(--teal-700)' : 'var(--gray-600)',
+            fontWeight: activeTab === 'mine' ? 700 : 500,
+            fontSize: '0.85rem',
+            cursor: 'pointer'
+          }}
+        >
+          <UserCheck size={15} />
+          Assigned to Me
+          <span style={{
+            background: activeTab === 'mine' ? 'var(--teal-500)' : 'var(--gray-200)',
+            color: activeTab === 'mine' ? 'white' : 'var(--gray-600)',
+            fontSize: '0.72rem',
+            padding: '1px 6px',
+            borderRadius: '10px'
+          }}>
+            {countMine}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('completed')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '7px 14px',
+            borderRadius: 'var(--radius-md)',
+            border: activeTab === 'completed' ? '1px solid var(--teal-500)' : '1px solid transparent',
+            background: activeTab === 'completed' ? 'rgba(6, 182, 212, 0.12)' : 'transparent',
+            color: activeTab === 'completed' ? 'var(--teal-700)' : 'var(--gray-600)',
+            fontWeight: activeTab === 'completed' ? 700 : 500,
+            fontSize: '0.85rem',
+            cursor: 'pointer'
+          }}
+        >
+          <CheckCircle2 size={15} />
+          Completed Archive
+          <span style={{
+            background: activeTab === 'completed' ? 'var(--teal-500)' : 'var(--gray-200)',
+            color: activeTab === 'completed' ? 'white' : 'var(--gray-600)',
+            fontSize: '0.72rem',
+            padding: '1px 6px',
+            borderRadius: '10px'
+          }}>
+            {countCompleted}
+          </span>
+        </button>
+      </div>
 
       <div className="table-container">
         <div className="table-toolbar">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Search size={15} color="var(--gray-400)" />
-            <input className="filter-input" placeholder="Search task ID, title, project..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: 280 }} />
+            <input
+              className="filter-input"
+              placeholder="Search task ID, title, project..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ width: 280 }}
+            />
           </div>
           <div className="table-filters">
             <select className="filter-input" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-              <option value="All">{isAdmin ? 'All Status (Active & Completed)' : 'All Active Tasks'}</option>
+              <option value="All">All Statuses</option>
               <option value="To Do">To Do</option>
               <option value="In Progress">In Progress</option>
               <option value="Ongoing">Ongoing</option>
               <option value="Pending">Pending / On Hold</option>
-              {isAdmin && <option value="Completed">✓ Completed (Admin View)</option>}
-              {isAdmin && <option value="Cancelled">Cancelled (Admin View)</option>}
+              <option value="Completed">✓ Completed</option>
+              <option value="Cancelled">Cancelled</option>
             </select>
             <select className="filter-input" value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)}>
               <option value="All">All Priorities</option>
-              <option>Urgent</option><option>High</option><option>Medium</option><option>Low</option>
+              <option>Urgent</option>
+              <option>High</option>
+              <option>Medium</option>
+              <option>Low</option>
             </select>
           </div>
         </div>
-        <DataTable columns={columns} data={filtered} emptyMessage="No tasks found" emptyIcon="✅" />
+        <DataTable
+          columns={columns}
+          data={filtered}
+          emptyMessage={
+            activeTab === 'mine'
+              ? 'No tasks assigned to you currently'
+              : activeTab === 'completed'
+                ? 'No completed tasks archived yet'
+                : 'No tasks found'
+          }
+          emptyIcon="📋"
+        />
       </div>
 
-      <Modal isOpen={showNew} onClose={() => setShowNew(false)} title="Create New Task" size="lg"
-        footer={<><button className="btn btn-secondary" onClick={() => setShowNew(false)}>Cancel</button><button className="btn btn-primary" onClick={handleCreate}><Plus size={14} /> Create Task</button></>}
+      {/* New Task Adder Modal */}
+      <Modal
+        isOpen={showNew}
+        onClose={() => setShowNew(false)}
+        title="Create New Task"
+        size="lg"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setShowNew(false)} disabled={isSubmitting}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={handleCreate} disabled={isSubmitting}>
+              <Plus size={14} /> {isSubmitting ? 'Saving to Database...' : 'Create Task'}
+            </button>
+          </>
+        }
       >
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Task Title <span className="required">*</span></label>
-            <input className="form-input" placeholder="Task title..." value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+            <input
+              className="form-input"
+              placeholder="Enter task title (e.g. Server Maintenance, Fiber Cable Termination)..."
+              value={form.title}
+              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              autoFocus
+            />
           </div>
           <div className="form-group">
             <label className="form-label">Priority</label>
-            <select className="form-select" value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
-              <option>Low</option><option>Medium</option><option>High</option><option>Urgent</option>
+            <select
+              className="form-select"
+              value={form.priority}
+              onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+            >
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+              <option>Urgent</option>
             </select>
           </div>
         </div>
-        <div className="form-group">
-          <label className="form-label">Initial Status</label>
-          <select className="form-select" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-            <option value="To Do">To Do</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Ongoing">Ongoing</option>
-            <option value="On Hold">On Hold</option>
-            <option value="Completed">Completed</option>
-          </select>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Initial Status</label>
+            <select
+              className="form-select"
+              value={form.status}
+              onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+            >
+              <option value="To Do">To Do</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Ongoing">Ongoing</option>
+              <option value="On Hold">On Hold</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Project / Group</label>
+            <input
+              className="form-input"
+              placeholder="e.g. Network Upgrade 2026, Asset Management"
+              value={form.project}
+              onChange={e => setForm(f => ({ ...f, project: e.target.value }))}
+            />
+          </div>
         </div>
+
         <div className="form-group">
           <label className="form-label">Description</label>
-          <textarea className="form-textarea" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} />
+          <textarea
+            className="form-textarea"
+            placeholder="Detailed description of task objectives, requirements, and steps..."
+            value={form.description}
+            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+            rows={3}
+          />
         </div>
+
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Start Date</label>
-            <input type="date" className="form-input" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
+            <input
+              type="date"
+              className="form-input"
+              value={form.startDate}
+              onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
+            />
           </div>
           <div className="form-group">
-            <label className="form-label">Due Date <span className="required">*</span></label>
-            <input type="date" className="form-input" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
+            <label className="form-label">Due Date</label>
+            <input
+              type="date"
+              className="form-input"
+              value={form.dueDate}
+              onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+            />
+            <span style={{ fontSize: '0.72rem', color: 'var(--gray-400)', marginTop: 2, display: 'block' }}>
+              Defaults to 7 days from now if omitted
+            </span>
           </div>
         </div>
+
         <div className="form-group">
-          <label className="form-label">Project / Group</label>
-          <input className="form-input" placeholder="e.g., Network Upgrade 2026" value={form.project} onChange={e => setForm(f => ({ ...f, project: e.target.value }))} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Assign To (Supervisees only)</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {technicians.map(u => (
-              <button key={u.id} type="button" onClick={() => toggleAssignee(u.id)} style={{ padding: '7px 14px', borderRadius: 'var(--radius-full)', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', background: form.assignees.includes(u.id) ? 'var(--teal-500)' : 'var(--gray-100)', color: form.assignees.includes(u.id) ? 'white' : 'var(--gray-700)', border: `1.5px solid ${form.assignees.includes(u.id) ? 'var(--teal-500)' : 'var(--gray-200)'}`, transition: 'all var(--transition-fast)' }}>
-                {u.name}
-              </button>
-            ))}
+          <label className="form-label">Assign To Team Members</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+            {technicians.map(u => {
+              const selected = form.assignees.includes(u.id);
+              return (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => toggleAssignee(u.id)}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 'var(--radius-full)',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    background: selected ? 'var(--teal-500)' : 'var(--gray-100)',
+                    color: selected ? 'white' : 'var(--gray-700)',
+                    border: `1.5px solid ${selected ? 'var(--teal-500)' : 'var(--gray-200)'}`,
+                    transition: 'all var(--transition-fast)'
+                  }}
+                >
+                  {selected ? '✓ ' : '+ '}{u.name} {u.role ? `(${u.role})` : ''}
+                </button>
+              );
+            })}
           </div>
         </div>
       </Modal>

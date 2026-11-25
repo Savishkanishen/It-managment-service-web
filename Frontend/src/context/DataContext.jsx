@@ -11,32 +11,63 @@ import {
 const DataContext = createContext(null);
 const API_BASE = 'http://localhost:5000/api';
 
+function deduplicateTasks(tasksList) {
+  if (!Array.isArray(tasksList)) return [];
+  const seenIds = new Set();
+  const seenNumbers = new Set();
+  const unique = [];
+
+  for (const t of tasksList) {
+    if (!t) continue;
+    const cleanId = t.taskNumber || (t.id && String(t.id).startsWith('TSK-') ? t.id : (t.taskNumber || t.id));
+    const normalized = {
+      ...t,
+      id: cleanId,
+      taskNumber: cleanId,
+      dbId: t.dbId || t.uuid || (t.id !== cleanId ? t.id : null),
+    };
+    if (normalized.id && seenIds.has(normalized.id)) continue;
+    if (normalized.taskNumber && seenNumbers.has(normalized.taskNumber)) continue;
+    if (normalized.id) seenIds.add(normalized.id);
+    if (normalized.taskNumber) seenNumbers.add(normalized.taskNumber);
+    unique.push(normalized);
+  }
+  return unique;
+}
+
 function mergeRemoteTasks(localTasks, remoteTasks) {
-  if (!Array.isArray(remoteTasks) || remoteTasks.length === 0) return localTasks;
+  if (!Array.isArray(remoteTasks) || remoteTasks.length === 0) return deduplicateTasks(localTasks);
   const resultMap = new Map();
 
-  localTasks.forEach(t => {
+  deduplicateTasks(localTasks).forEach(t => {
     if (t.id) resultMap.set(t.id, t);
     if (t.taskNumber) resultMap.set(t.taskNumber, t);
   });
 
   remoteTasks.forEach(rt => {
-    const key = rt.id || rt.taskNumber;
-    const local = resultMap.get(rt.id) || (rt.taskNumber ? resultMap.get(rt.taskNumber) : null);
+    const cleanId = rt.taskNumber || (rt.id && String(rt.id).startsWith('TSK-') ? rt.id : (rt.taskNumber || rt.id));
+    const normalized = {
+      ...rt,
+      id: cleanId,
+      taskNumber: cleanId,
+      dbId: rt.dbId || rt.uuid || (rt.id !== cleanId ? rt.id : null),
+    };
+    const key = normalized.id;
+    const local = resultMap.get(normalized.id) || (normalized.taskNumber ? resultMap.get(normalized.taskNumber) : null);
     if (!local) {
-      resultMap.set(key, rt);
+      resultMap.set(key, normalized);
     } else {
       const localCompleted = local.status === 'Completed' || local.status === 'Cancelled';
-      const remoteCompleted = rt.status === 'Completed' || rt.status === 'Cancelled';
+      const remoteCompleted = normalized.status === 'Completed' || normalized.status === 'Cancelled';
       if (localCompleted && !remoteCompleted) {
-        resultMap.set(local.id, { ...rt, ...local, status: local.status });
+        resultMap.set(local.id, { ...normalized, ...local, status: local.status });
       } else {
-        resultMap.set(local.id, { ...local, ...rt });
+        resultMap.set(local.id, { ...local, ...normalized });
       }
     }
   });
 
-  return Array.from(new Set(resultMap.values()));
+  return deduplicateTasks(Array.from(new Set(resultMap.values())));
 }
 
 function mergeRemoteZoom(localZoom, remoteZoom) {
@@ -109,6 +140,68 @@ function mergeRemoteTickets(localTickets, remoteTickets) {
   return Array.from(new Set(resultMap.values())).filter(t => !deletedIds.includes(t.id) && !deletedIds.includes(t.ticketNumber));
 }
 
+function generateRepairReferenceNumber(existingRepairs, dateStr) {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const prefix = `REP-${yyyy}-${mm}-${dd}`;
+
+  let maxSeq = 0;
+  (existingRepairs || []).forEach(r => {
+    const ref = r.referenceNumber || r.id;
+    if (ref && typeof ref === 'string' && ref.startsWith(prefix)) {
+      const parts = ref.split('-');
+      const seq = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+    }
+  });
+
+  return `${prefix}-${String(maxSeq + 1).padStart(3, '0')}`;
+}
+
+function deduplicateRepairs(repairsList) {
+  if (!Array.isArray(repairsList)) return [];
+  const seenIds = new Set();
+  const seenRefs = new Set();
+  const seenGatePasses = new Set();
+  const seenKeys = new Set();
+  const unique = [];
+
+  for (const r of repairsList) {
+    if (!r) continue;
+    // Prefer clean Year-Month-Date-Number format over raw UUID
+    const cleanId = (r.referenceNumber && String(r.referenceNumber).startsWith('REP-'))
+      ? r.referenceNumber
+      : (r.id && String(r.id).startsWith('REP-') ? r.id : (r.referenceNumber || r.id));
+
+    const normalized = {
+      ...r,
+      id: cleanId,
+      referenceNumber: cleanId,
+      dbId: r.dbId || r.uuid || (r.id !== cleanId ? r.id : null),
+    };
+
+    const idKey = normalized.id;
+    const refKey = normalized.referenceNumber;
+    const gatePassKey = (normalized.gatePass && typeof normalized.gatePass === 'string') ? normalized.gatePass.trim().toLowerCase() : null;
+    const compositeKey = `${normalized.assetTag || normalized.assetId || ''}|${(normalized.forReason || '').trim().slice(0, 35)}|${normalized.dispatchDate || ''}`;
+
+    if (idKey && seenIds.has(idKey)) continue;
+    if (refKey && seenRefs.has(refKey)) continue;
+    if (gatePassKey && seenGatePasses.has(gatePassKey)) continue;
+    if (compositeKey.length > 8 && seenKeys.has(compositeKey)) continue;
+
+    if (idKey) seenIds.add(idKey);
+    if (refKey) seenRefs.add(refKey);
+    if (gatePassKey) seenGatePasses.add(gatePassKey);
+    if (compositeKey.length > 8) seenKeys.add(compositeKey);
+
+    unique.push(normalized);
+  }
+  return unique;
+}
+
 function mergeRemoteRepairs(localRepairs, remoteRepairs) {
   let deletedIds = [];
   try {
@@ -116,7 +209,7 @@ function mergeRemoteRepairs(localRepairs, remoteRepairs) {
   } catch (e) {}
 
   if (!Array.isArray(remoteRepairs) || remoteRepairs.length === 0) {
-    return localRepairs.filter(r => !deletedIds.includes(r.id) && !deletedIds.includes(r.referenceNumber));
+    return deduplicateRepairs(localRepairs.filter(r => !deletedIds.includes(r.id) && !deletedIds.includes(r.referenceNumber)));
   }
 
   const resultMap = new Map();
@@ -124,12 +217,15 @@ function mergeRemoteRepairs(localRepairs, remoteRepairs) {
   localRepairs.filter(r => !deletedIds.includes(r.id) && !deletedIds.includes(r.referenceNumber)).forEach(r => {
     if (r.id) resultMap.set(r.id, r);
     if (r.referenceNumber) resultMap.set(r.referenceNumber, r);
+    if (r.gatePass) resultMap.set(r.gatePass.toLowerCase(), r);
   });
 
   remoteRepairs.forEach(rr => {
     if (deletedIds.includes(rr.id) || deletedIds.includes(rr.referenceNumber)) return;
     const key = rr.id || rr.referenceNumber;
-    const local = resultMap.get(rr.id) || (rr.referenceNumber ? resultMap.get(rr.referenceNumber) : null);
+    const local = resultMap.get(rr.id) ||
+                  (rr.referenceNumber ? resultMap.get(rr.referenceNumber) : null) ||
+                  (rr.gatePass ? resultMap.get(rr.gatePass.toLowerCase()) : null);
     if (!local) {
       resultMap.set(key, rr);
     } else {
@@ -143,7 +239,7 @@ function mergeRemoteRepairs(localRepairs, remoteRepairs) {
     }
   });
 
-  return Array.from(new Set(resultMap.values())).filter(r => !deletedIds.includes(r.id) && !deletedIds.includes(r.referenceNumber));
+  return deduplicateRepairs(Array.from(new Set(resultMap.values())).filter(r => !deletedIds.includes(r.id) && !deletedIds.includes(r.referenceNumber)));
 }
 
 export function DataProvider({ children }) {
@@ -166,7 +262,7 @@ export function DataProvider({ children }) {
       const saved = localStorage.getItem('itsm_repairs');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return deduplicateRepairs(parsed);
       }
     } catch (e) {}
     return REPAIRS;
@@ -188,10 +284,10 @@ export function DataProvider({ children }) {
       const saved = localStorage.getItem('itsm_tasks');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return deduplicateTasks(parsed);
       }
     } catch (e) {}
-    return TASKS;
+    return deduplicateTasks(TASKS);
   });
   const [auditLogs, setAuditLogs] = useState(AUDIT_LOGS);
   const [users, setUsers] = useState(USERS);
@@ -252,7 +348,7 @@ export function DataProvider({ children }) {
       } else if (e.key === 'itsm_repairs' && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
-          if (Array.isArray(parsed)) setRepairs(parsed);
+          if (Array.isArray(parsed)) setRepairs(deduplicateRepairs(parsed));
         } catch (err) {}
       }
     };
@@ -348,12 +444,27 @@ export function DataProvider({ children }) {
         const { type, payload } = event.data || {};
         if (type === 'TASK_UPDATED' && payload) {
           setTasks(prev => {
-            const match = prev.find(t => t.id === payload.id || t.taskNumber === (payload.taskNumber || payload.id) || (payload.title && t.title?.toLowerCase() === payload.title?.toLowerCase()));
-            if (match) {
-              return prev.map(t => t.id === match.id ? { ...t, ...payload } : t);
+            const incoming = {
+              ...payload,
+              id: payload.taskNumber || payload.id,
+              taskNumber: payload.taskNumber || payload.id,
+              dbId: payload.dbId || payload.uuid || (payload.id !== payload.taskNumber ? payload.id : null),
+            };
+            const matchIndex = prev.findIndex(t =>
+              t.id === incoming.id ||
+              t.taskNumber === incoming.taskNumber ||
+              (incoming.dbId && (t.dbId === incoming.dbId || t.id === incoming.dbId)) ||
+              (incoming.title && t.title?.toLowerCase() === incoming.title?.toLowerCase())
+            );
+            if (matchIndex !== -1) {
+              const updated = [...prev];
+              updated[matchIndex] = { ...updated[matchIndex], ...incoming };
+              return deduplicateTasks(updated);
             }
-            return [payload, ...prev];
+            return deduplicateTasks([incoming, ...prev]);
           });
+        } else if (type === 'TASK_DELETED' && payload) {
+          setTasks(prev => prev.filter(t => t.id !== payload.id && t.taskNumber !== payload.id && t.dbId !== payload.id && t.id !== payload.mappedId));
         } else if (type === 'ZOOM_UPDATED' && payload) {
           setZoomRequests(prev => {
             const match = prev.find(z => z.id === payload.id || (payload.meetingName && z.meetingName?.toLowerCase() === payload.meetingName?.toLowerCase()));
@@ -376,11 +487,20 @@ export function DataProvider({ children }) {
           setTickets(prev => prev.filter(t => t.id !== payload.id && t.ticketNumber !== payload.id && t.id !== payload.mappedId));
         } else if (type === 'REPAIR_UPDATED' && payload) {
           setRepairs(prev => {
-            const match = prev.find(r => r.id === payload.id || r.referenceNumber === (payload.referenceNumber || payload.id));
-            if (match) {
-              return prev.map(r => (r.id === match.id || r.referenceNumber === match.referenceNumber) ? { ...r, ...payload } : r);
+            const incoming = payload;
+            const matchIndex = prev.findIndex(r =>
+              r.id === incoming.id ||
+              r.referenceNumber === (incoming.referenceNumber || incoming.id) ||
+              (incoming.referenceNumber && r.id === incoming.referenceNumber) ||
+              (incoming.gatePass && r.gatePass && r.gatePass.toLowerCase() === incoming.gatePass.toLowerCase()) ||
+              (r.assetTag && incoming.assetTag && r.assetTag === incoming.assetTag && r.forReason === incoming.forReason)
+            );
+            if (matchIndex !== -1) {
+              const updated = [...prev];
+              updated[matchIndex] = { ...updated[matchIndex], ...incoming };
+              return deduplicateRepairs(updated);
             }
-            return [payload, ...prev];
+            return deduplicateRepairs([incoming, ...prev]);
           });
         } else if (type === 'REPAIR_DELETED' && payload) {
           setRepairs(prev => prev.filter(r => r.id !== payload.id && r.referenceNumber !== payload.id && r.id !== payload.mappedId));
@@ -406,13 +526,28 @@ export function DataProvider({ children }) {
         es.addEventListener('task_update', (event) => {
           try {
             const data = JSON.parse(event.data);
-            if (data.task) {
+            if (data.action === 'DELETE' && data.id) {
+              setTasks(prev => prev.filter(t => t.id !== data.id && t.taskNumber !== data.id && t.dbId !== data.id && t.id !== data.mappedId));
+            } else if (data.task) {
+              const incoming = {
+                ...data.task,
+                id: data.task.taskNumber || data.task.id,
+                taskNumber: data.task.taskNumber || data.task.id,
+                dbId: data.task.dbId || data.task.uuid || (data.task.id !== data.task.taskNumber ? data.task.id : null),
+              };
               setTasks(prev => {
-                const match = prev.find(t => t.id === data.task.id || t.taskNumber === (data.task.taskNumber || data.task.id) || (data.task.title && t.title?.toLowerCase() === data.task.title?.toLowerCase()));
-                if (match) {
-                  return prev.map(t => t.id === match.id ? { ...t, ...data.task } : t);
+                const matchIndex = prev.findIndex(t =>
+                  t.id === incoming.id ||
+                  t.taskNumber === incoming.taskNumber ||
+                  (incoming.dbId && (t.dbId === incoming.dbId || t.id === incoming.dbId)) ||
+                  (incoming.title && t.title?.toLowerCase() === incoming.title?.toLowerCase())
+                );
+                if (matchIndex !== -1) {
+                  const updated = [...prev];
+                  updated[matchIndex] = { ...updated[matchIndex], ...incoming };
+                  return deduplicateTasks(updated);
                 }
-                return [data.task, ...prev];
+                return deduplicateTasks([incoming, ...prev]);
               });
             }
           } catch (err) {
@@ -465,11 +600,20 @@ export function DataProvider({ children }) {
               setRepairs(prev => prev.filter(r => r.id !== data.id && r.referenceNumber !== data.id && r.id !== data.mappedId));
             } else if (data.repair) {
               setRepairs(prev => {
-                const match = prev.find(r => r.id === data.repair.id || r.referenceNumber === (data.repair.referenceNumber || data.repair.id));
-                if (match) {
-                  return prev.map(r => (r.id === match.id || r.referenceNumber === match.referenceNumber) ? { ...r, ...data.repair } : r);
+                const incoming = data.repair;
+                const matchIndex = prev.findIndex(r =>
+                  r.id === incoming.id ||
+                  r.referenceNumber === (incoming.referenceNumber || incoming.id) ||
+                  (incoming.referenceNumber && r.id === incoming.referenceNumber) ||
+                  (incoming.gatePass && r.gatePass && r.gatePass.toLowerCase() === incoming.gatePass.toLowerCase()) ||
+                  (r.assetTag && incoming.assetTag && r.assetTag === incoming.assetTag && r.forReason === incoming.forReason)
+                );
+                if (matchIndex !== -1) {
+                  const updated = [...prev];
+                  updated[matchIndex] = { ...updated[matchIndex], ...incoming };
+                  return deduplicateRepairs(updated);
                 }
-                return [data.repair, ...prev];
+                return deduplicateRepairs([incoming, ...prev]);
               });
             }
           } catch (err) {
@@ -730,7 +874,7 @@ export function DataProvider({ children }) {
       updatedAt: new Date().toISOString()
     };
 
-    setTasks(prev => prev.map(t => (t.id === id || t.taskNumber === id) ? { ...t, ...patchPayload } : t));
+    setTasks(prev => prev.map(t => (t.id === id || t.taskNumber === id || t.dbId === id) ? { ...t, ...patchPayload } : t));
     syncChannelRef.current?.postMessage({ type: 'TASK_UPDATED', payload: { id, ...patchPayload } });
 
     const logDesc = (canonicalStatus === 'On Hold' || canonicalStatus === 'Hold') && holdReason
@@ -738,16 +882,25 @@ export function DataProvider({ children }) {
       : `Changed task status to "${canonicalStatus}"`;
     addAuditLog(user?.id, user?.username || user?.name, 'STATUS_CHANGE', 'Task', id, logDesc, 'Task Management');
 
-    const updated = await apiCall(`/tasks/${id}/status`, 'PATCH', { status: canonicalStatus, holdReason });
-    if (updated) {
-      setTasks(prev => prev.map(t => (t.id === id || t.taskNumber === id) ? { ...t, ...updated } : t));
-      syncChannelRef.current?.postMessage({ type: 'TASK_UPDATED', payload: updated });
+    try {
+      const updated = await apiCall(`/tasks/${id}/status`, 'PATCH', { status: canonicalStatus, holdReason });
+      if (updated) {
+        const clean = {
+          ...updated,
+          id: updated.taskNumber || updated.id || id,
+          taskNumber: updated.taskNumber || updated.id || id,
+        };
+        setTasks(prev => deduplicateTasks(prev.map(t => (t.id === id || t.taskNumber === id || t.dbId === id) ? { ...t, ...clean } : t)));
+        syncChannelRef.current?.postMessage({ type: 'TASK_UPDATED', payload: clean });
+      }
+    } catch (err) {
+      console.warn('Backend task status update failed:', err);
     }
   };
 
-  const updateSubtaskStatus = (taskId, subtaskId, status, user) => {
+  const updateSubtaskStatus = async (taskId, subtaskId, status, user) => {
     setTasks(prev => prev.map(t => {
-      if (t.id !== taskId && t.taskNumber !== taskId) return t;
+      if (t.id !== taskId && t.taskNumber !== taskId && t.dbId !== taskId) return t;
       const updatedSubtasks = (t.subtasks || []).map(s =>
         s.id === subtaskId ? { ...s, status, completedAt: status === 'Completed' ? new Date().toISOString() : null } : s
       );
@@ -760,20 +913,33 @@ export function DataProvider({ children }) {
       return updatedTask;
     }));
     addAuditLog(user?.id, user?.username || user?.name, 'UPDATE', 'Subtask', subtaskId, `Updated subtask status to "${status}"`, 'Task Management');
-    apiCall(`/tasks/${taskId}/subtasks/${subtaskId}`, 'PATCH', { status });
+    try {
+      const res = await apiCall(`/tasks/${taskId}/subtasks/${subtaskId}`, 'PATCH', { status });
+      if (res && (res.id || res.taskNumber)) {
+        const clean = {
+          ...res,
+          id: res.taskNumber || res.id || taskId,
+          taskNumber: res.taskNumber || res.id || taskId,
+        };
+        setTasks(prev => deduplicateTasks(prev.map(t => (t.id === taskId || t.taskNumber === taskId || t.dbId === taskId) ? { ...t, ...clean } : t)));
+      }
+    } catch (err) {
+      console.warn('Backend subtask update failed:', err);
+    }
   };
 
   const createTask = async (taskData, user) => {
+    const generatedId = taskData.id || taskData.taskNumber || `TSK-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
     const newTask = {
-      id: `TSK-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
-      taskNumber: `TSK-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
+      id: generatedId,
+      taskNumber: generatedId,
       ...taskData,
       status: taskData.status || 'To Do',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       subtasks: taskData.subtasks || []
     };
-    setTasks(prev => [newTask, ...prev]);
+    setTasks(prev => deduplicateTasks([newTask, ...prev]));
     syncChannelRef.current?.postMessage({ type: 'TASK_UPDATED', payload: newTask });
     addAuditLog(user?.id, user?.username || user?.name, 'CREATE', 'Task', newTask.id, `Created task: ${taskData.title}`, 'Task Management');
 
@@ -789,13 +955,35 @@ export function DataProvider({ children }) {
         });
       });
     }
-    const serverResult = await apiCall('/tasks', 'POST', { ...taskData, createdBy: user?.id });
-    if (serverResult) {
-      setTasks(prev => prev.map(t => t.id === newTask.id ? serverResult : t));
-      syncChannelRef.current?.postMessage({ type: 'TASK_UPDATED', payload: serverResult });
-      return serverResult;
+
+    try {
+      const serverResult = await apiCall('/tasks', 'POST', {
+        ...taskData,
+        id: generatedId,
+        taskNumber: generatedId,
+        createdBy: user?.id,
+      });
+      if (serverResult) {
+        const canonicalResult = {
+          ...serverResult,
+          id: serverResult.taskNumber || serverResult.id || generatedId,
+          taskNumber: serverResult.taskNumber || serverResult.id || generatedId,
+        };
+        setTasks(prev => deduplicateTasks(prev.map(t => (t.id === newTask.id || t.taskNumber === newTask.id) ? canonicalResult : t)));
+        syncChannelRef.current?.postMessage({ type: 'TASK_UPDATED', payload: canonicalResult });
+        return canonicalResult;
+      }
+    } catch (err) {
+      console.warn('Backend task create failed, retained optimistic task:', err);
     }
     return newTask;
+  };
+
+  const deleteTask = async (id, user) => {
+    setTasks(prev => prev.filter(t => t.id !== id && t.taskNumber !== id && t.dbId !== id));
+    syncChannelRef.current?.postMessage({ type: 'TASK_DELETED', payload: { id } });
+    addAuditLog(user?.id, user?.username || user?.name, 'DELETE', 'Task', id, `Deleted task ${id}`, 'Task Management');
+    apiCall(`/tasks/${id}`, 'DELETE');
   };
 
   // --- ZOOM ---
@@ -1006,20 +1194,53 @@ export function DataProvider({ children }) {
 
   // --- REPAIRS ---
   const createRepair = async (data, user) => {
+    const refNum = (data.referenceNumber && data.referenceNumber.startsWith('REP-'))
+      ? data.referenceNumber
+      : generateRepairReferenceNumber(repairs, data.dispatchDate);
+    const pass = data.gatePass || `GP-${new Date().getFullYear()}-${Date.now().toString().slice(-3)}`;
     const newRepair = {
-      id: `REP-${Date.now()}`,
-      referenceNumber: `REP-${Date.now()}`,
+      id: refNum,
+      referenceNumber: refNum,
       ...data,
+      gatePass: pass,
       status: 'Active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    setRepairs(prev => [newRepair, ...prev]);
+
+    setRepairs(prev => {
+      const exists = prev.some(r =>
+        r.id === refNum ||
+        r.referenceNumber === refNum ||
+        (pass && r.gatePass && r.gatePass.toLowerCase() === pass.toLowerCase()) ||
+        (r.assetTag && data.assetTag && r.assetTag === data.assetTag && r.forReason === data.forReason)
+      );
+      if (exists) return prev;
+      return deduplicateRepairs([newRepair, ...prev]);
+    });
+
     syncChannelRef.current?.postMessage({ type: 'REPAIR_UPDATED', payload: newRepair });
     addAuditLog(user?.id, user?.username || user?.name, 'DISPATCH', 'Repair', newRepair.id, `Dispatched asset for repair: ${data.forReason}`, 'External Repairs');
-    const serverResult = await apiCall('/repairs', 'POST', { ...data, assignedTo: user?.id });
+
+    const serverResult = await apiCall('/repairs', 'POST', {
+      ...data,
+      id: refNum,
+      referenceNumber: refNum,
+      gatePass: pass,
+      assignedTo: user?.id,
+    });
+
     if (serverResult && serverResult.id) {
-      setRepairs(prev => prev.map(r => r.id === newRepair.id ? { ...newRepair, ...serverResult } : r));
+      setRepairs(prev => {
+        const withoutTemp = prev.filter(r =>
+          r.id !== refNum &&
+          r.referenceNumber !== refNum &&
+          r.id !== serverResult.id &&
+          r.referenceNumber !== serverResult.referenceNumber &&
+          !(pass && r.gatePass && r.gatePass.toLowerCase() === pass.toLowerCase())
+        );
+        return deduplicateRepairs([{ ...newRepair, ...serverResult }, ...withoutTemp]);
+      });
       syncChannelRef.current?.postMessage({ type: 'REPAIR_UPDATED', payload: { ...newRepair, ...serverResult } });
       return serverResult;
     }
@@ -1116,7 +1337,7 @@ export function DataProvider({ children }) {
       createAsset,
       updateStockStatus, updateStockQuantity, createStockItem,
       updateTicketStatus, assignTicket, submitReassignmentRequest, rejectReassignmentRequest, createTicket, deleteTicket,
-      updateTaskStatus, updateSubtaskStatus, createTask,
+      updateTaskStatus, updateSubtaskStatus, createTask, deleteTask,
       createZoomRequest, assignZoomRequest, updateZoomMeetingLink, updateZoomStatus, deleteZoomRequest,
       createUser, updateUserRole, toggleUserActive, resetUserPassword,
       broadcasts, addBroadcast, toggleBroadcast, removeBroadcast,

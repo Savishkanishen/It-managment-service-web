@@ -12,9 +12,12 @@ const TASK_MOCK_MAP = {
 };
 
 function formatTask(t) {
+  const cleanId = t.task_number || t.id;
   return {
-    id: t.id,
-    taskNumber: t.task_number || t.id,
+    id: cleanId,
+    taskNumber: cleanId,
+    dbId: t.id,
+    uuid: t.id,
     title: t.title,
     description: t.description || '',
     priority: t.priority || 'Medium',
@@ -32,50 +35,10 @@ function formatTask(t) {
   };
 }
 
-// GET /api/tasks - Get all tasks (Non-admin members only see active non-completed tasks assigned to them)
+// GET /api/tasks - Get all tasks
 router.get('/', async (req, res) => {
-  const requestingUserId = req.headers['x-user-id'] || req.query.userId;
   try {
-    let isManager = true;
-    let resolvedUser = null;
-
-    if (requestingUserId) {
-      const uRes = await db.query(
-        `SELECT u.id, u.username, r.name as role_name 
-         FROM itsm.users u 
-         LEFT JOIN itsm.roles r ON u.role_id = r.id 
-         WHERE u.id::text = $1 OR LOWER(u.username) = LOWER($1)`,
-        [requestingUserId]
-      );
-      if (uRes.rows.length > 0) {
-        resolvedUser = uRes.rows[0];
-        const role = (resolvedUser.role_name || '').toLowerCase();
-        // Only Super Admin and IT Admin can see completed tasks in full management mode
-        if (!role.includes('super') && !role.includes('it_admin') && role !== 'it' && resolvedUser.username?.toLowerCase() !== 'admin') {
-          isManager = false;
-        }
-      }
-    }
-
-    let queryText = 'SELECT * FROM itsm.tasks ORDER BY created_at DESC';
-    let queryParams = [];
-
-    if (!isManager && resolvedUser) {
-      queryText = `
-        SELECT * FROM itsm.tasks 
-        WHERE (created_by = $1
-           OR assignees::text ILIKE '%' || $1 || '%'
-           OR assignees::text ILIKE '%' || $2 || '%'
-           OR subtasks::text ILIKE '%' || $1 || '%'
-           OR subtasks::text ILIKE '%' || $2 || '%')
-           AND status != 'Completed'
-           AND status != 'Cancelled'
-        ORDER BY created_at DESC
-      `;
-      queryParams = [resolvedUser.id, resolvedUser.username];
-    }
-
-    const { rows } = await db.query(queryText, queryParams);
+    const { rows } = await db.query('SELECT * FROM itsm.tasks ORDER BY created_at DESC');
     res.json(rows.map(formatTask));
   } catch (err) {
     console.error('Error fetching tasks:', err);
@@ -104,11 +67,24 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/tasks - Create new task
 router.post('/', async (req, res) => {
-  const { title, description, priority, status, holdReason, startDate, dueDate, assignees, subtasks, project, department, createdBy } = req.body;
+  const { title, description, priority, status, holdReason, startDate, dueDate, assignees, subtasks, project, department, createdBy, id, taskNumber: clientTaskNumber } = req.body;
   try {
-    const taskNumber = `TSK-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+    let taskNumber = clientTaskNumber || (id && id.startsWith('TSK-') ? id : null);
+    if (!taskNumber) {
+      taskNumber = `TSK-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+    }
+
+    // Check if task with task_number already exists or duplicate creation
+    const existing = await db.query('SELECT * FROM itsm.tasks WHERE task_number = $1 OR (title = $2 AND created_at > NOW() - INTERVAL \'15 seconds\')', [taskNumber, title || '']);
+    if (existing.rows.length > 0) {
+      return res.json(formatTask(existing.rows[0]));
+    }
+
     let creatorId = await resolveUserId(db, createdBy);
-    if (!creatorId) creatorId = '00000000-0000-0000-0000-000000000001';
+    if (!creatorId) {
+      const u = await db.query('SELECT id FROM itsm.users LIMIT 1');
+      creatorId = u.rows.length > 0 ? u.rows[0].id : '00000000-0000-0000-0000-000000000001';
+    }
 
     const initialSubtasks = (subtasks || []).map((s, idx) => ({
       id: s.id || `SUB-${Date.now()}-${idx + 1}`,
@@ -144,9 +120,10 @@ router.post('/', async (req, res) => {
     res.status(201).json(newTask);
   } catch (err) {
     console.error('Error creating task:', err);
+    const fallbackId = clientTaskNumber || id || `TSK-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
     const fallbackTask = {
-      id: `TSK-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
-      taskNumber: `TSK-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
+      id: fallbackId,
+      taskNumber: fallbackId,
       title: title || 'Untitled Task',
       description: description || '',
       priority: priority || 'Medium',
@@ -182,7 +159,7 @@ router.patch('/:id/status', async (req, res) => {
     );
 
     if (rows.length === 0) {
-      const synthetic = { id: rawId, status, holdReason, updatedAt: new Date().toISOString() };
+      const synthetic = { id: rawId, taskNumber: rawId, status, holdReason, updatedAt: new Date().toISOString() };
       broadcastEvent('task_update', { action: 'UPDATE', task: synthetic });
       return res.json(synthetic);
     }
@@ -191,7 +168,7 @@ router.patch('/:id/status', async (req, res) => {
     res.json(updated);
   } catch (err) {
     console.error('Error updating task status:', err);
-    const synthetic = { id: rawId, status, holdReason, updatedAt: new Date().toISOString() };
+    const synthetic = { id: rawId, taskNumber: rawId, status, holdReason, updatedAt: new Date().toISOString() };
     broadcastEvent('task_update', { action: 'UPDATE', task: synthetic });
     res.json(synthetic);
   }
@@ -248,6 +225,25 @@ router.patch('/:id/subtasks/:subtaskId', async (req, res) => {
   } catch (err) {
     console.error('Error updating subtask:', err);
     res.json({ id: rawId, subtaskId: req.params.subtaskId, status });
+  }
+});
+
+// DELETE /api/tasks/:id - Delete a task
+router.delete('/:id', async (req, res) => {
+  const rawId = req.params.id;
+  const mappedId = TASK_MOCK_MAP[rawId] || rawId;
+
+  try {
+    await db.query(
+      'DELETE FROM itsm.tasks WHERE id::text = $1 OR id::text = $2 OR task_number = $1 OR task_number = $2',
+      [rawId, mappedId]
+    );
+    broadcastEvent('task_update', { action: 'DELETE', id: rawId, mappedId });
+    res.json({ message: 'Task deleted successfully', id: rawId });
+  } catch (err) {
+    console.error('Error deleting task:', err);
+    broadcastEvent('task_update', { action: 'DELETE', id: rawId, mappedId });
+    res.json({ message: 'Task deleted locally', id: rawId });
   }
 });
 
