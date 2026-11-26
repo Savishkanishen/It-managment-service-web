@@ -112,7 +112,14 @@ export default function ZoomListPage() {
               <div key={z.id} className={`zoom-card zoom-card-level-${z.meetingLevel?.toLowerCase() || 'medium'}`}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                   <div>
-                    <span className="id-chip" style={{ marginBottom: 4, display: 'inline-block' }}>{z.id}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                      <span className="id-chip" style={{ fontWeight: 700 }}>{z.referenceNumber || z.id}</span>
+                      {z.branch && (
+                        <span style={{ fontSize: '0.7rem', background: 'var(--gray-100)', color: 'var(--gray-700)', padding: '1px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', fontWeight: 600 }}>
+                          {z.branch}
+                        </span>
+                      )}
+                    </div>
                     <div className="zoom-meeting-name">{z.meetingName}</div>
                   </div>
                   <Badge status={z.meetingLevel === 'Critical' ? 'High' : 'Medium'}>{z.meetingLevel}</Badge>

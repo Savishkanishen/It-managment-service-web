@@ -89,10 +89,54 @@ export const VENDORS = [
 // ============================================================
 // ZOOM REQUESTS
 // ============================================================
+export function getBranchCode(branchOrDivision) {
+  if (!branchOrDivision) return 'IT';
+  const raw = String(branchOrDivision).trim();
+  const lower = raw.toLowerCase();
+
+  if (lower.includes('it') || lower.includes('information tech')) return 'IT';
+  if (lower.includes('academic')) return 'ACADEMIC';
+  if (lower.includes('finance')) return 'FINANCE';
+  if (lower.includes('hr') || lower.includes('human resource')) return 'HR';
+  if (lower.includes('legal')) return 'LEGAL';
+  if (lower.includes('planning')) return 'PLANNING';
+  if (lower.includes('admin')) return 'ADMIN';
+  if (lower.includes('minister')) return 'MINISTER';
+  if (lower.includes('quality') || lower.includes('qa')) return 'QA';
+
+  const cleaned = raw
+    .replace(/\b(division|department|branch|office|ministry|section)\b/gi, '')
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .toUpperCase();
+  
+  return cleaned || 'BRANCH';
+}
+
+export function generateZoomMeetingId(dateVal, branchName, existingList = []) {
+  const d = dateVal ? new Date(dateVal) : new Date();
+  const validDate = isNaN(d.getTime()) ? new Date() : d;
+  const yyyy = validDate.getFullYear();
+  const mm = String(validDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(validDate.getDate()).padStart(2, '0');
+  const branchCode = getBranchCode(branchName);
+  const baseId = `${yyyy}-${mm}-${dd}-${branchCode}`;
+
+  const existingIds = (existingList || []).map(z => z.id || z.referenceNumber || '');
+  if (!existingIds.includes(baseId)) {
+    return baseId;
+  }
+  let seq = 2;
+  while (existingIds.includes(`${baseId}-${String(seq).padStart(2, '0')}`)) {
+    seq++;
+  }
+  return `${baseId}-${String(seq).padStart(2, '0')}`;
+}
+
 export const ZOOM_REQUESTS = [
-  { id: 'ZM-2026-001', meetingName: 'Higher Education Budget Review 2027', meetingLink: 'https://zoom.us/j/123456789', location: 'Main Conference Hall — 3rd Floor', meetingLevel: 'Critical', requiredEquipment: ['Projector', 'HDMI Cable', 'Laptop', 'Microphone', 'Screen'], requestedBy: 'U007', assignedTo: 'U004', status: 'Confirmed', scheduledDate: '2026-09-18T09:00:00', createdAt: '2026-09-14T10:00:00' },
-  { id: 'ZM-2026-002', meetingName: 'Academic Council Meeting', meetingLink: '', location: 'Boardroom — 5th Floor', meetingLevel: 'Medium', requiredEquipment: ['Laptop', 'HDMI Cable', 'Webcam'], requestedBy: 'U007', assignedTo: 'U005', status: 'Pending', scheduledDate: '2026-09-20T14:00:00', createdAt: '2026-09-15T09:00:00' },
-  { id: 'ZM-2026-003', meetingName: 'IT Infrastructure Planning Session', meetingLink: 'https://zoom.us/j/111222333', location: 'IT Training Room — 1st Floor', meetingLevel: 'Medium', requiredEquipment: ['Laptop', 'Projector', 'VGA Cable'], requestedBy: 'U007', assignedTo: 'U002', status: 'Completed', scheduledDate: '2026-09-10T10:00:00', createdAt: '2026-09-08T11:00:00' },
+  { id: '2026-09-18-FINANCE', referenceNumber: '2026-09-18-FINANCE', branch: 'Finance Division', meetingName: 'Higher Education Budget Review 2027', meetingLink: 'https://zoom.us/j/123456789', location: 'Main Conference Hall — 3rd Floor', meetingLevel: 'Critical', requiredEquipment: ['Projector', 'HDMI Cable', 'Laptop', 'Microphone', 'Screen'], requestedBy: 'U007', assignedTo: 'U004', status: 'Confirmed', scheduledDate: '2026-09-18T09:00:00', createdAt: '2026-09-14T10:00:00' },
+  { id: '2026-09-20-ACADEMIC', referenceNumber: '2026-09-20-ACADEMIC', branch: 'Academic Affairs Division', meetingName: 'Academic Council Meeting', meetingLink: '', location: 'Boardroom — 5th Floor', meetingLevel: 'Medium', requiredEquipment: ['Laptop', 'HDMI Cable', 'Webcam'], requestedBy: 'U007', assignedTo: 'U005', status: 'Pending', scheduledDate: '2026-09-20T14:00:00', createdAt: '2026-09-15T09:00:00' },
+  { id: '2026-09-10-IT', referenceNumber: '2026-09-10-IT', branch: 'IT Department', meetingName: 'IT Infrastructure Planning Session', meetingLink: 'https://zoom.us/j/111222333', location: 'IT Training Room — 1st Floor', meetingLevel: 'Medium', requiredEquipment: ['Laptop', 'Projector', 'VGA Cable'], requestedBy: 'U007', assignedTo: 'U002', status: 'Completed', scheduledDate: '2026-09-10T10:00:00', createdAt: '2026-09-08T11:00:00' },
 ];
 
 // ============================================================

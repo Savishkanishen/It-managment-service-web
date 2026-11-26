@@ -264,6 +264,12 @@ BEGIN
   END IF;
 
   -- itsm.zoom_requests enhancements
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='itsm' AND table_name='zoom_requests' AND column_name='reference_number') THEN
+    ALTER TABLE itsm.zoom_requests ADD COLUMN reference_number character varying(100);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='itsm' AND table_name='zoom_requests' AND column_name='branch') THEN
+    ALTER TABLE itsm.zoom_requests ADD COLUMN branch character varying(100);
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='itsm' AND table_name='zoom_requests' AND column_name='location') THEN
     ALTER TABLE itsm.zoom_requests ADD COLUMN location character varying(100);
   END IF;
@@ -478,30 +484,30 @@ VALUES
 ON CONFLICT (task_number) DO NOTHING;
 
 -- 12. ZOOM REQUESTS SEED
-INSERT INTO itsm.zoom_requests (id, meeting_name, scheduled_time, status, requester_id, assignee_id, meeting_link, location, meeting_level, required_equipment)
+INSERT INTO itsm.zoom_requests (id, reference_number, branch, meeting_name, scheduled_time, status, requester_id, assignee_id, meeting_link, location, meeting_level, required_equipment)
 VALUES
   (
-    '99999999-9999-9999-9999-999999999901', 'Higher Education Budget Review 2027',
+    '99999999-9999-9999-9999-999999999901', '2026-09-18-FINANCE', 'Finance Division', 'Higher Education Budget Review 2027',
     '2026-09-18 09:00:00+05:30', 'Confirmed',
     '68783080-af72-4144-a3cc-2ab166fc0446', '22222222-2222-2222-2222-222222222202',
     'https://zoom.us/j/123456789', 'Main Conference Hall — 3rd Floor', 'Critical',
     '["Projector", "HDMI Cable", "Laptop", "Microphone", "Screen"]'::jsonb
   ),
   (
-    '99999999-9999-9999-9999-999999999902', 'Academic Council Meeting',
+    '99999999-9999-9999-9999-999999999902', '2026-09-20-ACADEMIC', 'Academic Affairs Division', 'Academic Council Meeting',
     '2026-09-20 14:00:00+05:30', 'Pending',
     '68783080-af72-4144-a3cc-2ab166fc0446', '22222222-2222-2222-2222-222222222203',
     NULL, 'Boardroom — 5th Floor', 'Medium',
     '["Laptop", "HDMI Cable", "Webcam"]'::jsonb
   ),
   (
-    '99999999-9999-9999-9999-999999999903', 'IT Infrastructure Planning Session',
+    '99999999-9999-9999-9999-999999999903', '2026-09-10-IT', 'IT Department', 'IT Infrastructure Planning Session',
     '2026-09-10 10:00:00+05:30', 'Completed',
     '68783080-af72-4144-a3cc-2ab166fc0446', 'cf9ee99c-d1dc-4805-8b25-69909a366d58',
     'https://zoom.us/j/111222333', 'IT Training Room — 1st Floor', 'Medium',
     '["Laptop", "Projector", "VGA Cable"]'::jsonb
   )
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET reference_number = EXCLUDED.reference_number, branch = EXCLUDED.branch;
 
 -- 13. PUBLICATIONS SEED
 INSERT INTO itsm.publications (id, title, content, status, requested_by, approved_by, published_by, published_at, attachments)

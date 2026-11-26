@@ -5,6 +5,7 @@ import { useNotifications } from '../../context/NotificationContext';
 import StatCard from '../../components/ui/StatCard';
 import { Badge } from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
+import { DIVISIONS, generateZoomMeetingId } from '../../data/mockData';
 import { Video, Clock, MapPin, Link as LinkIcon, Plus, CheckCircle, Monitor, Info, CheckCircle2, Trash2 } from 'lucide-react';
 
 const EQUIPMENT_OPTIONS = ['Projector','HDMI Cable','VGA Cable','Laptop','Webcam','Microphone','Screen','Extension Cord','Pointer'];
@@ -15,9 +16,15 @@ export default function ZoomRequesterDashboard() {
   const { addToast } = useNotifications();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
-    meetingName: '', location: '', meetingLevel: 'Medium',
-    scheduledDate: '', requiredEquipment: [],
+    meetingName: '',
+    branch: currentUser?.division || 'Academic Affairs Division',
+    location: '',
+    meetingLevel: 'Medium',
+    scheduledDate: '',
+    requiredEquipment: [],
   });
+
+  const liveMeetingId = generateZoomMeetingId(form.scheduledDate, form.branch, zoomRequests);
 
   const myRequests = zoomRequests.filter(z => z.requestedBy === currentUser?.id || z.requestedBy === currentUser?.username);
 
@@ -42,15 +49,15 @@ export default function ZoomRequesterDashboard() {
     }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.meetingName || !form.location || !form.scheduledDate) {
       addToast('error', 'Missing Fields', 'Please fill in all required fields');
       return;
     }
-    createZoomRequest(form, currentUser);
-    addToast('success', 'Request Submitted', `Zoom support request for "${form.meetingName}" has been submitted. IT Admin will reply with the Zoom meeting link.`);
+    const created = await createZoomRequest(form, currentUser);
+    addToast('success', 'Request Submitted', `Zoom support request for "${form.meetingName}" scheduled with ID: ${created?.id || liveMeetingId}.`);
     setShowForm(false);
-    setForm({ meetingName: '', location: '', meetingLevel: 'Medium', scheduledDate: '', requiredEquipment: [] });
+    setForm({ meetingName: '', branch: currentUser?.division || 'Academic Affairs Division', location: '', meetingLevel: 'Medium', scheduledDate: '', requiredEquipment: [] });
   };
 
   return (
@@ -89,7 +96,7 @@ export default function ZoomRequesterDashboard() {
             <tbody>
               {myRequests.map(z => (
                 <tr key={z.id}>
-                  <td><span className="id-chip">{z.id}</span></td>
+                  <td><span className="id-chip">{z.referenceNumber || z.id}</span></td>
                   <td style={{ fontWeight: 600, fontSize: '0.875rem' }}>{z.meetingName}</td>
                   <td style={{ fontSize: '0.8rem' }}>{new Date(z.scheduledDate).toLocaleString()}</td>
                   <td style={{ fontSize: '0.8rem' }}>{z.location}</td>
@@ -196,15 +203,51 @@ export default function ZoomRequesterDashboard() {
             </select>
           </div>
         </div>
+
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Location / Hall / Venue <span className="required">*</span></label>
-            <input className="form-input" placeholder="e.g., Main Conference Hall — 3rd Floor" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+            <label className="form-label">Branch / Division <span className="required">*</span></label>
+            <select
+              className="form-select"
+              value={form.branch}
+              onChange={e => setForm(f => ({ ...f, branch: e.target.value }))}
+            >
+              {DIVISIONS.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
           </div>
           <div className="form-group">
             <label className="form-label">Scheduled Date & Time <span className="required">*</span></label>
             <input className="form-input" type="datetime-local" value={form.scheduledDate} onChange={e => setForm(f => ({ ...f, scheduledDate: e.target.value }))} />
           </div>
+        </div>
+
+        {/* Live Meeting ID Preview */}
+        <div style={{
+          background: 'rgba(6, 182, 212, 0.08)',
+          border: '1px solid var(--teal-300)',
+          borderRadius: 'var(--radius-md)',
+          padding: '9px 12px',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 6
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: '0.76rem', color: 'var(--gray-600)', fontWeight: 600 }}>Scheduled Meeting ID:</span>
+            <span className="id-chip" style={{ fontSize: '0.8rem', fontWeight: 700, padding: '2px 8px', background: 'var(--teal-600)', color: 'white' }}>
+              {liveMeetingId}
+            </span>
+          </div>
+          <span style={{ fontSize: '0.7rem', color: 'var(--teal-800)' }}>Format: Year-Month-Date-Branch</span>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Location / Hall / Venue <span className="required">*</span></label>
+          <input className="form-input" placeholder="e.g., Main Conference Hall — 3rd Floor" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
         </div>
         <div className="form-group">
           <label className="form-label">Required Equipment</label>

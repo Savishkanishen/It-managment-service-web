@@ -6,6 +6,7 @@ import {
   setDynamicUsers, setDynamicAssets,
   getTicketStats as helperGetTicketStats,
   getTaskStats as helperGetTaskStats,
+  generateZoomMeetingId,
 } from '../data/mockData';
 
 const DataContext = createContext(null);
@@ -1051,8 +1052,13 @@ export function DataProvider({ children }) {
 
   // --- ZOOM ---
   const createZoomRequest = async (data, user) => {
+    const branchName = data.branch || data.division || user?.division || 'IT Department';
+    const computedId = generateZoomMeetingId(data.scheduledDate, branchName, zoomRequests);
+
     const newReq = {
-      id: `ZM-${Date.now()}`,
+      id: computedId,
+      referenceNumber: computedId,
+      branch: branchName,
       ...data,
       meetingLink: data.meetingLink || '',
       requestedBy: data.requestedBy || user?.id,
@@ -1062,9 +1068,11 @@ export function DataProvider({ children }) {
     };
     setZoomRequests(prev => [newReq, ...prev]);
     syncChannelRef.current?.postMessage({ type: 'ZOOM_UPDATED', payload: newReq });
-    addAuditLog(user?.id, user?.username || user?.name, 'CREATE', 'ZoomRequest', newReq.id, `Submitted Zoom request: ${data.meetingName}`, 'Zoom Support');
+    addAuditLog(user?.id, user?.username || user?.name, 'CREATE', 'ZoomRequest', newReq.id, `Submitted Zoom request: ${data.meetingName} (ID: ${computedId})`, 'Zoom Support');
     const serverResult = await apiCall('/zoom-requests', 'POST', {
       ...data,
+      branch: branchName,
+      referenceNumber: computedId,
       requestedBy: data.requestedBy || user?.id,
       meetingLink: data.meetingLink || '',
       status: data.status || (data.meetingLink ? 'Confirmed' : 'Pending')

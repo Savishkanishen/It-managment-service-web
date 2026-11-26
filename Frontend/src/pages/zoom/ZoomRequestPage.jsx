@@ -3,13 +3,13 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
-import { ROLES } from '../../data/mockData';
-import { ArrowLeft, Video, Info, Sparkles, Link as LinkIcon, CheckCircle } from 'lucide-react';
+import { ROLES, DIVISIONS, generateZoomMeetingId } from '../../data/mockData';
+import { ArrowLeft, Video, Info, Sparkles, Link as LinkIcon, CheckCircle, Building } from 'lucide-react';
 
 const EQUIPMENT_OPTIONS = ['Projector','HDMI Cable','VGA Cable','Laptop','Webcam','Microphone','Screen','Extension Cord','Pointer','Podium'];
 
 export default function ZoomRequestPage() {
-  const { createZoomRequest } = useData();
+  const { createZoomRequest, zoomRequests } = useData();
   const { currentUser } = useAuth();
   const { addToast } = useNotifications();
   const navigate = useNavigate();
@@ -18,12 +18,15 @@ export default function ZoomRequestPage() {
 
   const [form, setForm] = useState({
     meetingName: '',
+    branch: currentUser?.division || 'IT Department',
     location: '',
     meetingLevel: 'Medium',
     scheduledDate: '',
     meetingLink: '',
     requiredEquipment: []
   });
+
+  const liveMeetingId = generateZoomMeetingId(form.scheduledDate, form.branch, zoomRequests);
 
   const toggleEquip = (eq) => setForm(f => ({ ...f, requiredEquipment: f.requiredEquipment.includes(eq) ? f.requiredEquipment.filter(e=>e!==eq) : [...f.requiredEquipment, eq] }));
 
@@ -47,13 +50,13 @@ export default function ZoomRequestPage() {
       status: form.meetingLink ? 'Confirmed' : 'Pending',
     };
 
-    await createZoomRequest(payload, currentUser);
+    const created = await createZoomRequest(payload, currentUser);
     addToast(
       'success',
       form.meetingLink ? 'Meeting Created & Confirmed' : 'Request Submitted',
       form.meetingLink
-        ? `Zoom meeting "${form.meetingName}" created with official link.`
-        : `Zoom support request for "${form.meetingName}" submitted. IT Admin will provide the meeting link.`
+        ? `Zoom meeting "${form.meetingName}" scheduled (ID: ${created?.id || liveMeetingId}).`
+        : `Zoom support request for "${form.meetingName}" submitted (ID: ${created?.id || liveMeetingId}).`
     );
     navigate('/zoom');
   };
@@ -109,15 +112,54 @@ export default function ZoomRequestPage() {
                   </select>
                 </div>
               </div>
+
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Location / Hall / Venue <span className="required">*</span></label>
-                  <input className="form-input" placeholder="e.g., Main Conference Hall — 3rd Floor" value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} required />
+                  <label className="form-label">Branch / Division <span className="required">*</span></label>
+                  <select
+                    className="form-select"
+                    value={form.branch}
+                    onChange={e => setForm(f => ({ ...f, branch: e.target.value }))}
+                    required
+                  >
+                    {DIVISIONS.map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Scheduled Date & Time <span className="required">*</span></label>
                   <input type="datetime-local" className="form-input" value={form.scheduledDate} onChange={e=>setForm(f=>({...f,scheduledDate:e.target.value}))} required />
                 </div>
+              </div>
+
+              {/* Live Meeting ID Preview */}
+              <div style={{
+                background: 'rgba(6, 182, 212, 0.08)',
+                border: '1px solid var(--teal-300)',
+                borderRadius: 'var(--radius-md)',
+                padding: '10px 14px',
+                marginBottom: 16,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 8
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--gray-600)', fontWeight: 600 }}>Scheduled Meeting ID:</span>
+                  <span className="id-chip" style={{ fontSize: '0.82rem', fontWeight: 700, padding: '3px 10px', background: 'var(--teal-600)', color: 'white', letterSpacing: '0.5px' }}>
+                    {liveMeetingId}
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--teal-800)', fontStyle: 'italic' }}>
+                  Format: Year-Month-Date-Branch
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Location / Hall / Venue <span className="required">*</span></label>
+                <input className="form-input" placeholder="e.g., Main Conference Hall — 3rd Floor" value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} required />
               </div>
 
               {/* Instant Meeting Link (Available to Privileged Users or optional for Requesters) */}

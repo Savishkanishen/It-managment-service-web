@@ -578,7 +578,14 @@ export default function ITAdminDashboard() {
               <div key={z.id} className={`zoom-card zoom-card-level-${z.meetingLevel.toLowerCase()}`} style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                   <div>
-                    <span className="id-chip" style={{ fontSize: '0.68rem', marginBottom: 2, display: 'inline-block' }}>{z.id}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
+                      <span className="id-chip" style={{ fontSize: '0.72rem', fontWeight: 700 }}>{z.referenceNumber || z.id}</span>
+                      {z.branch && (
+                        <span style={{ fontSize: '0.68rem', background: 'var(--gray-100)', color: 'var(--gray-700)', padding: '1px 5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', fontWeight: 600 }}>
+                          {z.branch}
+                        </span>
+                      )}
+                    </div>
                     <div className="zoom-meeting-name" style={{ fontSize: '1.05rem' }}>{z.meetingName}</div>
                   </div>
                   <Badge status={z.meetingLevel === 'Critical' ? 'High' : 'Medium'}>{z.meetingLevel}</Badge>
