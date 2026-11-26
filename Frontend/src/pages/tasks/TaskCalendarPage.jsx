@@ -12,10 +12,13 @@ export default function TaskCalendarPage() {
   const { tasks } = useData();
   const { currentUser } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [filterMode, setFilterMode] = useState('all'); // 'all' | 'mine'
+
+  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser?.role) || currentUser?.username?.toLowerCase() === 'admin';
+  const [filterMode, setFilterMode] = useState(isAdmin ? 'all' : 'mine'); // 'all' | 'mine'
 
   const myTasksCount = tasks.filter(t => isTaskAssignedToUser(t, currentUser)).length;
-  const visibleTasks = filterMode === 'mine'
+  // Non-admins strictly only see their assigned task deadlines; admins can view all or mine
+  const visibleTasks = (!isAdmin || filterMode === 'mine')
     ? tasks.filter(t => isTaskAssignedToUser(t, currentUser))
     : tasks;
 
@@ -100,48 +103,66 @@ export default function TaskCalendarPage() {
           <p>Deadline & milestone calendar view synchronized real time</p>
         </div>
         <div className="page-header-actions">
-          <div style={{ display: 'flex', gap: 6, background: 'var(--gray-100)', padding: 3, borderRadius: 'var(--radius-md)' }}>
-            <button
-              type="button"
-              onClick={() => setFilterMode('all')}
-              style={{
-                border: 'none',
-                background: filterMode === 'all' ? 'white' : 'transparent',
-                fontWeight: filterMode === 'all' ? 700 : 500,
-                color: filterMode === 'all' ? 'var(--teal-700)' : 'var(--gray-600)',
-                padding: '5px 12px',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                boxShadow: filterMode === 'all' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
-              }}
-            >
-              <Layers size={13} /> All Tasks ({tasks.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterMode('mine')}
-              style={{
-                border: 'none',
-                background: filterMode === 'mine' ? 'white' : 'transparent',
-                fontWeight: filterMode === 'mine' ? 700 : 500,
-                color: filterMode === 'mine' ? 'var(--teal-700)' : 'var(--gray-600)',
-                padding: '5px 12px',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                boxShadow: filterMode === 'mine' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
-              }}
-            >
-              <UserCheck size={13} /> My Deadlines ({myTasksCount})
-            </button>
-          </div>
+          {isAdmin ? (
+            <div style={{ display: 'flex', gap: 6, background: 'var(--gray-100)', padding: 3, borderRadius: 'var(--radius-md)' }}>
+              <button
+                type="button"
+                onClick={() => setFilterMode('all')}
+                style={{
+                  border: 'none',
+                  background: filterMode === 'all' ? 'white' : 'transparent',
+                  fontWeight: filterMode === 'all' ? 700 : 500,
+                  color: filterMode === 'all' ? 'var(--teal-700)' : 'var(--gray-600)',
+                  padding: '5px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  boxShadow: filterMode === 'all' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
+                }}
+              >
+                <Layers size={13} /> All Tasks ({tasks.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterMode('mine')}
+                style={{
+                  border: 'none',
+                  background: filterMode === 'mine' ? 'white' : 'transparent',
+                  fontWeight: filterMode === 'mine' ? 700 : 500,
+                  color: filterMode === 'mine' ? 'var(--teal-700)' : 'var(--gray-600)',
+                  padding: '5px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  boxShadow: filterMode === 'mine' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
+                }}
+              >
+                <UserCheck size={13} /> My Deadlines ({myTasksCount})
+              </button>
+            </div>
+          ) : (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(6, 182, 212, 0.12)',
+              border: '1px solid var(--teal-300)',
+              padding: '5px 12px',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '0.8rem',
+              color: 'var(--teal-800)',
+              fontWeight: 600
+            }}>
+              <UserCheck size={13} style={{ color: 'var(--teal-600)' }} />
+              <span>My Deadlines ({myTasksCount})</span>
+            </div>
+          )}
           <Link to="/tasks/list" className="btn btn-secondary btn-sm">List View</Link>
           <Link to="/tasks/board" className="btn btn-secondary btn-sm">Board</Link>
         </div>

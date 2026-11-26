@@ -8,7 +8,7 @@ import { Badge, PriorityBadge } from '../../components/ui/Badge';
 import ProgressBar from '../../components/ui/ProgressBar';
 import HoldReasonModal from '../../components/ui/HoldReasonModal';
 import { calcTaskProgress, getUser, ROLES, isTaskAssignedToUser } from '../../data/mockData';
-import { Kanban, Calendar, Clock, Lock } from 'lucide-react';
+import { Kanban, Calendar, Clock, Lock, UserCheck } from 'lucide-react';
 
 const COLUMNS = [
   { id: 'To Do', label: 'To Do', color: '#3b82f6', bg: '#eff6ff' },
@@ -26,11 +26,14 @@ export default function TaskBoardPage() {
 
   const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser?.role) || currentUser?.username?.toLowerCase() === 'admin';
   const canManageTasks = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN, ROLES.IT_OFFICER].includes(currentUser?.role) || isAdmin;
-  const [boardFilter, setBoardFilter] = useState('all'); // 'all' | 'mine'
+  const [boardFilter, setBoardFilter] = useState('all'); // 'all' | 'mine' (only for admin)
   
-  const visibleTasks = boardFilter === 'mine'
+  // Non-admins strictly only see tasks assigned to them; only admins can view everyone's tasks
+  const visibleTasks = !isAdmin
     ? tasks.filter(t => isTaskAssignedToUser(t, currentUser))
-    : tasks;
+    : (boardFilter === 'mine' ? tasks.filter(t => isTaskAssignedToUser(t, currentUser)) : tasks);
+
+  const myTasksCount = tasks.filter(t => isTaskAssignedToUser(t, currentUser)).length;
 
   const normalizeStatus = (status) => {
     if (!status) return 'To Do';
@@ -54,6 +57,12 @@ export default function TaskBoardPage() {
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
     const newStatus = destination.droppableId;
     const targetTask = tasks.find(t => t.id === draggableId || t.taskNumber === draggableId);
+
+    // Non-admins can only move tasks assigned to their account
+    if (!isAdmin && targetTask && !isTaskAssignedToUser(targetTask, currentUser)) {
+      addToast('error', 'Permission Denied', 'You can only update tasks assigned to your account.');
+      return;
+    }
 
     if (newStatus === 'On Hold' || newStatus === 'Hold') {
       setPendingDragTask({ task: targetTask, newStatus });
@@ -79,49 +88,81 @@ export default function TaskBoardPage() {
       <div className="page-header">
         <div className="page-header-left">
           <h1>Kanban Board</h1>
-          <p>Drag and drop tasks to update their status (To Do, In Progress, Ongoing, On Hold, Completed)</p>
+          <p>
+            {isAdmin
+              ? 'Drag and drop tasks to update their status (To Do, In Progress, Ongoing, On Hold, Completed)'
+              : 'Managing your assigned tasks across workflow stages (To Do, In Progress, Ongoing, On Hold, Completed)'}
+          </p>
         </div>
         <div className="page-header-actions">
-          <div style={{ display: 'flex', gap: 6, background: 'var(--gray-100)', padding: 3, borderRadius: 'var(--radius-md)' }}>
-            <button
-              type="button"
-              onClick={() => setBoardFilter('all')}
-              style={{
-                border: 'none',
-                background: boardFilter === 'all' ? 'white' : 'transparent',
-                fontWeight: boardFilter === 'all' ? 700 : 500,
-                color: boardFilter === 'all' ? 'var(--teal-700)' : 'var(--gray-600)',
-                padding: '4px 10px',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                boxShadow: boardFilter === 'all' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
-              }}
-            >
-              All Tasks ({tasks.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setBoardFilter('mine')}
-              style={{
-                border: 'none',
-                background: boardFilter === 'mine' ? 'white' : 'transparent',
-                fontWeight: boardFilter === 'mine' ? 700 : 500,
-                color: boardFilter === 'mine' ? 'var(--teal-700)' : 'var(--gray-600)',
-                padding: '4px 10px',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                boxShadow: boardFilter === 'mine' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
-              }}
-            >
-              My Tasks ({tasks.filter(t => isTaskAssignedToUser(t, currentUser)).length})
-            </button>
-          </div>
+          {isAdmin ? (
+            <div style={{ display: 'flex', gap: 6, background: 'var(--gray-100)', padding: 3, borderRadius: 'var(--radius-md)' }}>
+              <button
+                type="button"
+                onClick={() => setBoardFilter('all')}
+                style={{
+                  border: 'none',
+                  background: boardFilter === 'all' ? 'white' : 'transparent',
+                  fontWeight: boardFilter === 'all' ? 700 : 500,
+                  color: boardFilter === 'all' ? 'var(--teal-700)' : 'var(--gray-600)',
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  boxShadow: boardFilter === 'all' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
+                }}
+              >
+                All Tasks ({tasks.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setBoardFilter('mine')}
+                style={{
+                  border: 'none',
+                  background: boardFilter === 'mine' ? 'white' : 'transparent',
+                  fontWeight: boardFilter === 'mine' ? 700 : 500,
+                  color: boardFilter === 'mine' ? 'var(--teal-700)' : 'var(--gray-600)',
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  boxShadow: boardFilter === 'mine' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
+                }}
+              >
+                My Tasks ({myTasksCount})
+              </button>
+            </div>
+          ) : (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(6, 182, 212, 0.12)',
+              border: '1px solid var(--teal-300)',
+              padding: '5px 12px',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '0.8rem',
+              color: 'var(--teal-800)',
+              fontWeight: 600
+            }}>
+              <UserCheck size={14} style={{ color: 'var(--teal-600)' }} />
+              <span>My Assigned Tasks ({visibleTasks.length})</span>
+            </div>
+          )}
           <Link to="/tasks/list" className="btn btn-secondary btn-sm">List View</Link>
           <Link to="/tasks/calendar" className="btn btn-secondary btn-sm"><Calendar size={14} /> Calendar</Link>
         </div>
       </div>
+
+      {!isAdmin && visibleTasks.length === 0 && (
+        <div className="card" style={{ padding: '32px 20px', textAlign: 'center', marginBottom: 20, background: '#f8fafc', border: '1.5px dashed var(--gray-300)' }}>
+          <Kanban size={36} style={{ color: 'var(--gray-400)', margin: '0 auto 12px' }} />
+          <h3 style={{ margin: '0 0 6px', fontSize: '1rem', color: 'var(--gray-700)' }}>No Tasks Assigned To You</h3>
+          <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--gray-500)', maxWidth: 440, marginLeft: 'auto', marginRight: 'auto' }}>
+            You currently have no tasks assigned to your account. When an administrator assigns a task to you, it will appear here in real time.
+          </p>
+        </div>
+      )}
 
 
 

@@ -38,8 +38,13 @@ export default function TaskListPage() {
 
   const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser?.role) || currentUser?.username?.toLowerCase() === 'admin';
 
+  // Base tasks for current user role: non-admins strictly see only tasks assigned to them
+  const baseTasks = !isAdmin
+    ? tasks.filter(t => isTaskAssignedToUser(t, currentUser))
+    : tasks;
+
   // Filter tasks according to active tab
-  const tabFilteredTasks = tasks.filter(t => {
+  const tabFilteredTasks = baseTasks.filter(t => {
     if (activeTab === 'active') {
       return t.status !== 'Completed' && t.status !== 'Cancelled';
     }
@@ -278,17 +283,21 @@ export default function TaskListPage() {
   ];
 
   // Tab counts
-  const countAll = tasks.length;
-  const countActive = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+  const countAll = baseTasks.length;
+  const countActive = baseTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
   const countMine = tasks.filter(t => isTaskAssignedToUser(t, currentUser)).length;
-  const countCompleted = tasks.filter(t => t.status === 'Completed' || t.status === 'Cancelled').length;
+  const countCompleted = baseTasks.filter(t => t.status === 'Completed' || t.status === 'Cancelled').length;
 
   return (
     <div>
       <div className="page-header">
         <div className="page-header-left">
           <h1>Task List</h1>
-          <p>All IT Department tasks sorted, filtered, and synchronized real-time with PostgreSQL database</p>
+          <p>
+            {isAdmin
+              ? 'All IT Department tasks sorted, filtered, and synchronized real-time with PostgreSQL database'
+              : 'Your assigned IT Department tasks sorted, filtered, and synchronized real-time'}
+          </p>
         </div>
         <div className="page-header-actions">
           <Link to="/tasks/board" className="btn btn-secondary btn-sm"><Kanban size={14} /> Board</Link>
@@ -326,7 +335,7 @@ export default function TaskListPage() {
           }}
         >
           <Layers size={15} />
-          All Department Tasks
+          {isAdmin ? 'All Department Tasks' : 'My Assigned Tasks'}
           <span style={{
             background: activeTab === 'all' ? 'var(--teal-500)' : 'var(--gray-200)',
             color: activeTab === 'all' ? 'white' : 'var(--gray-600)',
