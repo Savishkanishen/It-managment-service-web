@@ -1043,6 +1043,46 @@ export function DataProvider({ children }) {
     }
   };
 
+  const updateTask = async (taskId, updates, user) => {
+    setTasks(prev => deduplicateTasks(prev.map(t => {
+      if (t.id === taskId || t.taskNumber === taskId || t.dbId === taskId) {
+        return { ...t, ...updates, updatedAt: new Date().toISOString() };
+      }
+      return t;
+    })));
+
+    syncChannelRef.current?.postMessage({
+      type: 'TASK_UPDATED',
+      payload: { id: taskId, ...updates, updatedAt: new Date().toISOString() }
+    });
+
+    addAuditLog(
+      user?.id,
+      user?.username || user?.name,
+      'UPDATE',
+      'Task',
+      taskId,
+      `Modified task details: ${updates.title || taskId}`,
+      'Task Management'
+    );
+
+    try {
+      const serverResult = await apiCall(`/tasks/${taskId}`, 'PATCH', updates);
+      if (serverResult) {
+        const clean = {
+          ...serverResult,
+          id: serverResult.taskNumber || serverResult.id || taskId,
+          taskNumber: serverResult.taskNumber || serverResult.id || taskId,
+        };
+        setTasks(prev => deduplicateTasks(prev.map(t => (t.id === taskId || t.taskNumber === taskId || t.dbId === taskId) ? { ...t, ...clean } : t)));
+        syncChannelRef.current?.postMessage({ type: 'TASK_UPDATED', payload: clean });
+        return clean;
+      }
+    } catch (err) {
+      console.warn('Backend updateTask failed:', err);
+    }
+  };
+
   const deleteTask = async (id, user) => {
     setTasks(prev => prev.filter(t => t.id !== id && t.taskNumber !== id && t.dbId !== id));
     syncChannelRef.current?.postMessage({ type: 'TASK_DELETED', payload: { id } });
@@ -1408,7 +1448,7 @@ export function DataProvider({ children }) {
       createAsset,
       updateStockStatus, updateStockQuantity, createStockItem,
       updateTicketStatus, assignTicket, submitReassignmentRequest, rejectReassignmentRequest, createTicket, deleteTicket,
-      updateTaskStatus, updateSubtaskStatus, createTask, assignTask, deleteTask,
+      updateTaskStatus, updateSubtaskStatus, createTask, assignTask, updateTask, deleteTask,
       createZoomRequest, assignZoomRequest, updateZoomMeetingLink, updateZoomStatus, deleteZoomRequest,
       createUser, updateUserRole, toggleUserActive, resetUserPassword,
       broadcasts, addBroadcast, toggleBroadcast, removeBroadcast,

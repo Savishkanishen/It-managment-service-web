@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
@@ -8,21 +8,48 @@ import ProgressBar from '../../components/ui/ProgressBar';
 import HoldReasonModal from '../../components/ui/HoldReasonModal';
 import Modal from '../../components/ui/Modal';
 import { calcTaskProgress, getUser, ROLES, isTaskAssignedToUser, USERS } from '../../data/mockData';
-import { ArrowLeft, CheckSquare, User, Calendar, Flag, Plus, Check, PauseCircle, Lock, UserPlus, Users, UserX } from 'lucide-react';
+import { ArrowLeft, CheckSquare, User, Calendar, Flag, Plus, Check, PauseCircle, Lock, UserPlus, Users, UserX, Edit, Trash2 } from 'lucide-react';
 
 export default function TaskDetailPage() {
   const { id } = useParams();
-  const { tasks, users, updateTaskStatus, updateSubtaskStatus, assignTask } = useData();
+  const navigate = useNavigate();
+  const { tasks, users, updateTaskStatus, updateSubtaskStatus, assignTask, updateTask, deleteTask } = useData();
   const { currentUser } = useAuth();
   const { addToast } = useNotifications();
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedAssignees, setSelectedAssignees] = useState([]);
   const [savingAssign, setSavingAssign] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [remoteTask, setRemoteTask] = useState(null);
   const [loadingRemote, setLoadingRemote] = useState(false);
 
   const task = tasks.find(t => t.id === id || t.taskNumber === id || t.dbId === id) || remoteTask;
+
+  const [editForm, setEditForm] = useState({
+    title: '',
+    description: '',
+    priority: 'Medium',
+    dueDate: '',
+    startDate: '',
+    project: '',
+    department: 'IT Department',
+  });
+
+  useEffect(() => {
+    if (task) {
+      setEditForm({
+        title: task.title || '',
+        description: task.description || '',
+        priority: task.priority || 'Medium',
+        dueDate: task.dueDate || '',
+        startDate: task.startDate || '',
+        project: task.project || '',
+        department: task.department || 'IT Department',
+      });
+    }
+  }, [task]);
 
   useEffect(() => {
     if (!tasks.some(t => t.id === id || t.taskNumber === id || t.dbId === id)) {
@@ -66,6 +93,10 @@ export default function TaskDetailPage() {
   };
 
   const handleStatusChange = (status) => {
+    if (status === 'Cancelled' && !isAdmin) {
+      addToast('error', 'Permission Denied', 'Only administrators can cancel tasks.');
+      return;
+    }
     if (status === 'On Hold' || status === 'Hold' || status === 'Pending') {
       setShowHoldModal(true);
     } else {
@@ -77,6 +108,41 @@ export default function TaskDetailPage() {
       } else {
         addToast('success', 'Status Updated', `Task moved to "${status}"`);
       }
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!isAdmin) {
+      addToast('error', 'Permission Denied', 'Only administrators can delete tasks.');
+      return;
+    }
+    if (window.confirm(`Permanently delete task "${task.title}" (${task.taskNumber || task.id}) from the database? This cannot be undone.`)) {
+      await deleteTask(task.id, currentUser);
+      addToast('warning', 'Task Deleted', `Task "${task.title}" has been removed.`);
+      navigate('/tasks/list');
+    }
+  };
+
+  const handleSaveEdit = async (e) => {
+    if (e) e.preventDefault();
+    if (!isAdmin) {
+      addToast('error', 'Permission Denied', 'Only administrators can modify tasks.');
+      return;
+    }
+    if (!editForm.title.trim()) {
+      addToast('error', 'Validation Error', 'Task title cannot be empty.');
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      await updateTask(task.id, editForm, currentUser);
+      addToast('success', 'Task Updated', 'Task details have been saved in real time.');
+      setShowEditModal(false);
+    } catch (err) {
+      addToast('error', 'Update Failed', err.message || 'Server error modifying task');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -125,6 +191,16 @@ export default function TaskDetailPage() {
         </div>
         {canEditStatus && (
           <div className="detail-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {isAdmin && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                onClick={() => setShowEditModal(true)}
+              >
+                <Edit size={14} /> Edit Task
+              </button>
+            )}
             {canManageTasks && (
               <button
                 type="button"
@@ -145,8 +221,19 @@ export default function TaskDetailPage() {
               <option value="Ongoing">Ongoing</option>
               <option value="Pending">Pending (On Hold)</option>
               <option value="Completed">Completed</option>
-              <option value="Cancelled">Cancelled</option>
+              {isAdmin && <option value="Cancelled">Cancelled (Admin)</option>}
             </select>
+            {isAdmin && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--danger-500)', borderColor: '#fca5a5' }}
+                onClick={handleDeleteTask}
+                title="Delete task permanently"
+              >
+                <Trash2 size={14} /> Delete Task
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -390,6 +477,93 @@ export default function TaskDetailPage() {
             );
           })}
         </div>
+      </Modal>
+
+      {/* Admin Edit Task Modal */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        title={`Modify Task Details — ${task.taskNumber || task.id}`}
+        size="md"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setShowEditModal(false)} disabled={savingEdit}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={handleSaveEdit} disabled={savingEdit}>
+              <Check size={14} /> {savingEdit ? 'Saving Changes...' : 'Save Changes'}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleSaveEdit}>
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Task Title <span className="required">*</span></label>
+            <input
+              className="form-input"
+              value={editForm.title}
+              onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+              required
+            />
+          </div>
+
+          <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div className="form-group">
+              <label className="form-label">Priority</label>
+              <select
+                className="form-select"
+                value={editForm.priority}
+                onChange={e => setEditForm(f => ({ ...f, priority: e.target.value }))}
+              >
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+                <option value="Urgent">Urgent</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Project</label>
+              <input
+                className="form-input"
+                value={editForm.project}
+                onChange={e => setEditForm(f => ({ ...f, project: e.target.value }))}
+                placeholder="e.g. Infrastructure Maintenance"
+              />
+            </div>
+          </div>
+
+          <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div className="form-group">
+              <label className="form-label">Start Date</label>
+              <input
+                type="date"
+                className="form-input"
+                value={editForm.startDate || ''}
+                onChange={e => setEditForm(f => ({ ...f, startDate: e.target.value }))}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Due Date</label>
+              <input
+                type="date"
+                className="form-input"
+                value={editForm.dueDate || ''}
+                onChange={e => setEditForm(f => ({ ...f, dueDate: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Description</label>
+            <textarea
+              className="form-input"
+              rows={4}
+              value={editForm.description}
+              onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="Task instructions and requirements..."
+            />
+          </div>
+        </form>
       </Modal>
     </div>
   );

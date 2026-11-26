@@ -7,12 +7,12 @@ import { Badge, PriorityBadge } from '../../components/ui/Badge';
 import ProgressBar from '../../components/ui/ProgressBar';
 import HoldReasonModal from '../../components/ui/HoldReasonModal';
 import { calcTaskProgress, getUser, ROLES, isTaskAssignedToUser, USERS } from '../../data/mockData';
-import { Search, Plus, Kanban, Calendar, CheckCircle2, Clock, UserCheck, Layers, Check, UserPlus } from 'lucide-react';
+import { Search, Plus, Kanban, Calendar, CheckCircle2, Clock, UserCheck, Layers, Check, UserPlus, Trash2 } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import { useNotifications } from '../../context/NotificationContext';
 
 export default function TaskListPage() {
-  const { tasks, users, createTask, updateTaskStatus, assignTask } = useData();
+  const { tasks, users, createTask, updateTaskStatus, assignTask, deleteTask } = useData();
   const { currentUser } = useAuth();
   const { addToast } = useNotifications();
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'active' | 'mine' | 'completed'
@@ -69,6 +69,10 @@ export default function TaskListPage() {
   });
 
   const handleStatusChange = (task, newStatus) => {
+    if (newStatus === 'Cancelled' && !isAdmin) {
+      addToast('error', 'Permission Denied', 'Only administrators can cancel tasks.');
+      return;
+    }
     if (newStatus === 'On Hold' || newStatus === 'Hold' || newStatus === 'Pending') {
       setHoldModalTask(task);
     } else {
@@ -197,7 +201,7 @@ export default function TaskListPage() {
             <option value="Ongoing">Ongoing</option>
             <option value="Pending">Pending (On Hold)</option>
             <option value="Completed">Completed</option>
-            <option value="Cancelled">Cancelled</option>
+            {isAdmin && <option value="Cancelled">Cancelled (Admin)</option>}
           </select>
         </div>
       )
@@ -275,9 +279,28 @@ export default function TaskListPage() {
       label: '',
       sortable: false,
       render: (v, row) => (
-        <Link to={`/tasks/${row.taskNumber || v}`} className="btn btn-secondary btn-sm">
-          View
-        </Link>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Link to={`/tasks/${row.taskNumber || v}`} className="btn btn-secondary btn-sm">
+            {isAdmin ? 'Manage' : 'View'}
+          </Link>
+          {isAdmin && (
+            <button
+              type="button"
+              className="icon-btn"
+              style={{ width: 28, height: 28, color: 'var(--danger-500)' }}
+              title="Delete task (Admin only)"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (window.confirm(`Permanently delete task "${row.title}" (${row.taskNumber || v}) from database?`)) {
+                  deleteTask(row.id, currentUser);
+                  addToast('warning', 'Task Deleted', `Task "${row.title}" permanently deleted.`);
+                }
+              }}
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
       )
     },
   ];

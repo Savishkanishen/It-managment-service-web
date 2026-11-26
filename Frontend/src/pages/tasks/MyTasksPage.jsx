@@ -6,22 +6,31 @@ import { useNotifications } from '../../context/NotificationContext';
 import { Badge, PriorityBadge } from '../../components/ui/Badge';
 import ProgressBar from '../../components/ui/ProgressBar';
 import HoldReasonModal from '../../components/ui/HoldReasonModal';
-import { calcTaskProgress, isTaskAssignedToUser } from '../../data/mockData';
-import { CheckSquare, Clock, ArrowRight } from 'lucide-react';
+import { calcTaskProgress, isTaskAssignedToUser, ROLES, getUser } from '../../data/mockData';
+import { CheckSquare, Clock, ArrowRight, Trash2, Kanban, Calendar, Layers, UserCheck, ShieldAlert } from 'lucide-react';
 
 export default function MyTasksPage() {
-  const { tasks, updateTaskStatus } = useData();
+  const { tasks, updateTaskStatus, deleteTask } = useData();
   const { currentUser } = useAuth();
   const { addToast } = useNotifications();
   const [holdModalTask, setHoldModalTask] = useState(null);
 
-  const uid = String(currentUser?.id || '').toLowerCase();
-  const uname = String(currentUser?.username || '').toLowerCase();
+  const isAdmin = [ROLES.SUPER_ADMIN, ROLES.IT_ADMIN].includes(currentUser?.role) || currentUser?.username?.toLowerCase() === 'admin';
+  const [adminScope, setAdminScope] = useState('all'); // 'all' (default: everyone's tasks) | 'mine' (admin's direct tasks)
 
-  const myTasks = tasks.filter(t => isTaskAssignedToUser(t, currentUser));
-  const mySubtasks = myTasks.flatMap(t => (t.subtasks || []).filter(s => {
-    return isTaskAssignedToUser({ assignees: [s.assignee] }, currentUser);
-  }).map(s => ({ ...s, taskId: t.taskNumber || t.id, taskTitle: t.title })));
+  const myAssignedCount = tasks.filter(t => isTaskAssignedToUser(t, currentUser)).length;
+
+  // In admin view: show everyone's tasks by default (admin master control); non-admins strictly see only their own assigned tasks
+  const myTasks = isAdmin
+    ? (adminScope === 'mine' ? tasks.filter(t => isTaskAssignedToUser(t, currentUser)) : tasks)
+    : tasks.filter(t => isTaskAssignedToUser(t, currentUser));
+
+  const mySubtasks = isAdmin
+    ? (adminScope === 'mine'
+        ? myTasks.flatMap(t => (t.subtasks || []).filter(s => isTaskAssignedToUser({ assignees: [s.assignee] }, currentUser)).map(s => ({ ...s, taskId: t.taskNumber || t.id, taskTitle: t.title })))
+        : tasks.flatMap(t => (t.subtasks || []).map(s => ({ ...s, taskId: t.taskNumber || t.id, taskTitle: t.title })))
+      )
+    : myTasks.flatMap(t => (t.subtasks || []).filter(s => isTaskAssignedToUser({ assignees: [s.assignee] }, currentUser)).map(s => ({ ...s, taskId: t.taskNumber || t.id, taskTitle: t.title })));
 
   const today = new Date();
   const active = myTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
@@ -29,6 +38,10 @@ export default function MyTasksPage() {
   const overdue = myTasks.filter(t => new Date(t.dueDate) < today && t.status !== 'Completed' && t.status !== 'Cancelled');
 
   const handleStatusChange = (task, newStatus) => {
+    if (newStatus === 'Cancelled' && !isAdmin) {
+      addToast('error', 'Permission Denied', 'Only administrators can cancel tasks.');
+      return;
+    }
     if (newStatus === 'On Hold' || newStatus === 'Hold' || newStatus === 'Pending') {
       setHoldModalTask(task);
     } else {
@@ -50,19 +63,82 @@ export default function MyTasksPage() {
     setHoldModalTask(null);
   };
 
+  const handleDelete = (task) => {
+    if (!isAdmin) {
+      addToast('error', 'Permission Denied', 'Only administrators can delete tasks.');
+      return;
+    }
+    if (window.confirm(`Permanently delete task "${task.title}" (${task.taskNumber || task.id}) from the database?`)) {
+      deleteTask(task.id, currentUser);
+      addToast('warning', 'Task Deleted', `Task "${task.title}" permanently deleted.`);
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
         <div className="page-header-left">
-          <h1>My Tasks</h1>
-          <p>Tasks and subtasks assigned directly to you</p>
+          <h1>{isAdmin ? "Department Tasks (Admin View)" : "My Tasks"}</h1>
+          <p>
+            {isAdmin
+              ? "Administrator master view: Oversee everyone's tasks across the team. Full authority to modify, cancel, or delete."
+              : "Tasks and subtasks assigned directly to your account"}
+          </p>
+        </div>
+        <div className="page-header-actions">
+          {isAdmin && (
+            <div style={{ display: 'flex', gap: 6, background: 'var(--gray-100)', padding: 3, borderRadius: 'var(--radius-md)' }}>
+              <button
+                type="button"
+                onClick={() => setAdminScope('all')}
+                style={{
+                  border: 'none',
+                  background: adminScope === 'all' ? 'white' : 'transparent',
+                  fontWeight: adminScope === 'all' ? 700 : 500,
+                  color: adminScope === 'all' ? 'var(--teal-700)' : 'var(--gray-600)',
+                  padding: '5px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  boxShadow: adminScope === 'all' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
+                }}
+              >
+                <Layers size={13} /> Everyone's Tasks ({tasks.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdminScope('mine')}
+                style={{
+                  border: 'none',
+                  background: adminScope === 'mine' ? 'white' : 'transparent',
+                  fontWeight: adminScope === 'mine' ? 700 : 500,
+                  color: adminScope === 'mine' ? 'var(--teal-700)' : 'var(--gray-600)',
+                  padding: '5px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  boxShadow: adminScope === 'mine' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none'
+                }}
+              >
+                <UserCheck size={13} /> Assigned to Me ({myAssignedCount})
+              </button>
+            </div>
+          )}
+          <Link to="/tasks/board" className="btn btn-secondary btn-sm"><Kanban size={14} /> Board</Link>
+          <Link to="/tasks/calendar" className="btn btn-secondary btn-sm"><Calendar size={14} /> Calendar</Link>
         </div>
       </div>
 
       {/* Summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 28 }}>
         {[
-          { label: 'Total Assigned', value: myTasks.length, color: 'var(--teal-500)' },
+          { label: isAdmin && adminScope === 'all' ? 'All Tasks' : 'Total Assigned', value: myTasks.length, color: 'var(--teal-500)' },
           { label: 'Active', value: active.length, color: 'var(--warning-500)' },
           { label: 'Completed', value: completed.length, color: 'var(--success-500)' },
           { label: 'Overdue', value: overdue.length, color: 'var(--danger-500)' },
@@ -83,7 +159,11 @@ export default function MyTasksPage() {
       <div className="card-grid">
         {/* Active Tasks */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Active Tasks ({active.length})</span></div>
+          <div className="card-header">
+            <span className="card-title">
+              {isAdmin && adminScope === 'all' ? `All Active Tasks (${active.length})` : `Active Tasks (${active.length})`}
+            </span>
+          </div>
           <div className="card-body" style={{ paddingTop: 8 }}>
             {active.map(t => {
               const progress = calcTaskProgress(t);
@@ -100,6 +180,24 @@ export default function MyTasksPage() {
                       <div style={{ fontWeight: 700, fontSize: '0.875rem' }}>{t.title}</div>
                     </div>
                     <PriorityBadge priority={t.priority} />
+                  </div>
+
+                  {/* Assignees chips for quick identification */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--gray-500)', fontWeight: 600 }}>Assignees:</span>
+                    <div className="avatar-stack">
+                      {(t.assignees || []).slice(0, 3).map(id => {
+                        const u = getUser(id);
+                        return u ? (
+                          <div key={id} className="avatar avatar-sm" style={{ background: 'var(--teal-500)' }} title={`${u.name} (${u.role || 'Staff'})`}>
+                            {(u.avatar || u.name.slice(0, 2)).toUpperCase()}
+                          </div>
+                        ) : null;
+                      })}
+                      {(!t.assignees || t.assignees.length === 0) && (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--gray-400)', fontStyle: 'italic' }}>Unassigned</span>
+                      )}
+                    </div>
                   </div>
 
                   {isOnHold && t.holdReason && (
@@ -130,13 +228,26 @@ export default function MyTasksPage() {
                         <option value="Ongoing">Ongoing</option>
                         <option value="Pending">Pending (On Hold)</option>
                         <option value="Completed">Completed</option>
-                        <option value="Cancelled">Cancelled</option>
+                        {isAdmin && <option value="Cancelled">Cancelled (Admin)</option>}
                       </select>
                     </div>
 
-                    <Link to={`/tasks/${t.taskNumber || t.id}`} className="btn btn-secondary btn-sm">
-                      View & Update <ArrowRight size={12} />
-                    </Link>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <Link to={`/tasks/${t.taskNumber || t.id}`} className="btn btn-secondary btn-sm">
+                        {isAdmin ? 'Manage & Modify' : 'View & Update'} <ArrowRight size={12} />
+                      </Link>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          style={{ width: 28, height: 28, color: 'var(--danger-500)' }}
+                          title="Delete task (Admin only)"
+                          onClick={() => handleDelete(t)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -145,25 +256,37 @@ export default function MyTasksPage() {
           </div>
         </div>
 
-        {/* My Subtasks */}
+        {/* Subtasks */}
         <div className="card">
-          <div className="card-header"><span className="card-title">My Subtasks ({mySubtasks.length})</span></div>
+          <div className="card-header">
+            <span className="card-title">
+              {isAdmin && adminScope === 'all' ? `Department Subtasks (${mySubtasks.length})` : `My Subtasks (${mySubtasks.length})`}
+            </span>
+          </div>
           <div className="card-body" style={{ paddingTop: 8 }}>
-            {mySubtasks.map(s => (
-              <div key={s.id} className="subtask-item">
-                <div className={`subtask-check ${s.status === 'Completed' ? 'checked' : ''}`}>
-                  {s.status === 'Completed' && <svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1,5 4,8 9,2" stroke="white" strokeWidth="2" fill="none" /></svg>}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className={`subtask-title ${s.status === 'Completed' ? 'done' : ''}`}>{s.title}</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--gray-400)' }}>
-                    <Link to={`/tasks/${s.taskId}`} style={{ color: 'var(--teal-600)' }}>{s.taskTitle}</Link>
-                    {s.dueDate && <span> · Due {s.dueDate}</span>}
+            {mySubtasks.map(s => {
+              const assigneeObj = getUser(s.assignee);
+              return (
+                <div key={s.id} className="subtask-item">
+                  <div className={`subtask-check ${s.status === 'Completed' ? 'checked' : ''}`}>
+                    {s.status === 'Completed' && <svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1,5 4,8 9,2" stroke="white" strokeWidth="2" fill="none" /></svg>}
                   </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className={`subtask-title ${s.status === 'Completed' ? 'done' : ''}`}>{s.title}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--gray-400)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <Link to={`/tasks/${s.taskId}`} style={{ color: 'var(--teal-600)' }}>{s.taskTitle}</Link>
+                      {assigneeObj && (
+                        <span style={{ color: 'var(--gray-500)' }}>
+                          • Assigned: <strong>{assigneeObj.name}</strong>
+                        </span>
+                      )}
+                      {s.dueDate && <span>· Due {s.dueDate}</span>}
+                    </div>
+                  </div>
+                  <Badge status={s.status} />
                 </div>
-                <Badge status={s.status} />
-              </div>
-            ))}
+              );
+            })}
             {mySubtasks.length === 0 && <div style={{ textAlign: 'center', padding: '32px', color: 'var(--gray-400)' }}>No subtasks assigned</div>}
           </div>
         </div>

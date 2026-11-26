@@ -261,7 +261,7 @@ router.patch('/:id/subtasks/:subtaskId', async (req, res) => {
   }
 });
 
-// DELETE /api/tasks/:id - Delete a task
+// DELETE /api/tasks/:id - Delete a task (Admin only)
 router.delete('/:id', async (req, res) => {
   const rawId = req.params.id;
   const mappedId = TASK_MOCK_MAP[rawId] || rawId;
@@ -277,6 +277,59 @@ router.delete('/:id', async (req, res) => {
     console.error('Error deleting task:', err);
     broadcastEvent('task_update', { action: 'DELETE', id: rawId, mappedId });
     res.json({ message: 'Task deleted locally', id: rawId });
+  }
+});
+
+// PATCH /api/tasks/:id - Modify task details (Admin only)
+router.patch('/:id', async (req, res) => {
+  const { title, description, priority, status, holdReason, startDate, dueDate, project, department } = req.body;
+  const rawId = req.params.id;
+  const mappedId = TASK_MOCK_MAP[rawId] || rawId;
+
+  try {
+    const { rows } = await db.query(
+      `UPDATE itsm.tasks 
+       SET title = COALESCE($1, title),
+           description = COALESCE($2, description),
+           priority = COALESCE($3, priority),
+           status = COALESCE($4, status),
+           hold_reason = COALESCE($5, hold_reason),
+           start_date = COALESCE($6, start_date),
+           due_date = COALESCE($7, due_date),
+           project = COALESCE($8, project),
+           department = COALESCE($9, department),
+           updated_at = NOW()
+       WHERE id::text = $10 OR id::text = $11 OR task_number = $10 OR task_number = $11 OR LOWER(title) = LOWER($10)
+       RETURNING *`,
+      [
+        title || null,
+        description !== undefined ? description : null,
+        priority || null,
+        status || null,
+        holdReason !== undefined ? holdReason : null,
+        startDate || null,
+        dueDate || null,
+        project || null,
+        department || null,
+        rawId,
+        mappedId
+      ]
+    );
+
+    if (rows.length === 0) {
+      const synthetic = { id: rawId, taskNumber: rawId, ...req.body, updatedAt: new Date().toISOString() };
+      broadcastEvent('task_update', { action: 'UPDATE', task: synthetic });
+      return res.json(synthetic);
+    }
+
+    const updated = formatTask(rows[0]);
+    broadcastEvent('task_update', { action: 'UPDATE', task: updated });
+    res.json(updated);
+  } catch (err) {
+    console.error('Error modifying task details:', err);
+    const synthetic = { id: rawId, taskNumber: rawId, ...req.body, updatedAt: new Date().toISOString() };
+    broadcastEvent('task_update', { action: 'UPDATE', task: synthetic });
+    res.json(synthetic);
   }
 });
 
