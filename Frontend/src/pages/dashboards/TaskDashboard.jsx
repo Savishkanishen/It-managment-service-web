@@ -11,7 +11,7 @@ import { CheckSquare, Clock, AlertTriangle, TrendingUp, Kanban, Calendar, ListTo
 export default function TaskDashboard() {
   const { currentUser } = useAuth();
   const { tasks } = useData();
-  const stats = getTaskStats(currentUser.id, tasks);
+  const stats = getTaskStats(currentUser, tasks);
   const allStats = getTaskStats(null, tasks);
 
   const urgentTasks = tasks.filter(t => (t.priority === 'Urgent' || t.priority === 'High') && t.status !== 'Completed');
@@ -73,7 +73,7 @@ export default function TaskDashboard() {
                   <ProgressBar value={progress} size="sm" showLabel={false} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
                     <span style={{ fontSize: '0.72rem', color: 'var(--gray-500)' }}>{progress}% complete</span>
-                    <Link to={`/tasks/${t.id}`} style={{ fontSize: '0.72rem', color: 'var(--teal-600)', fontWeight: 600 }}>View →</Link>
+                    <Link to={`/tasks/${t.taskNumber || t.id}`} style={{ fontSize: '0.72rem', color: 'var(--teal-600)', fontWeight: 600 }}>View →</Link>
                   </div>
                 </div>
               );
@@ -89,26 +89,34 @@ export default function TaskDashboard() {
           <div className="card-body">
             {tasks.map(t => {
               const progress = calcTaskProgress(t);
-              const assignees = t.assignees.map(id => getUser(id)).filter(Boolean);
+              const assignees = (t.assignees || []).map(id => getUser(id)).filter(Boolean);
+              const subtasks = t.subtasks || [];
               return (
                 <div key={t.id} style={{ marginBottom: 20 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--gray-900)' }}>{t.title}</div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--gray-500)', marginTop: 2 }}>{t.project}</div>
+                      <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--gray-900)' }}>
+                        <Link to={`/tasks/${t.taskNumber || t.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                          {t.title}
+                        </Link>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--gray-500)', marginTop: 2 }}>{t.project || 'General'}</div>
                     </div>
                     <div className="avatar-stack">
                       {assignees.slice(0, 3).map(u => (
                         <div key={u.id} className="avatar avatar-sm" style={{ background: 'var(--teal-500)', fontSize: '0.6rem' }}>
-                          {u.name.slice(0,2)}
+                          {(u.avatar || u.name.slice(0,2)).toUpperCase()}
                         </div>
                       ))}
+                      {assignees.length === 0 && (
+                        <span style={{ fontSize: '0.7rem', color: 'var(--gray-400)', fontStyle: 'italic' }}>Unassigned</span>
+                      )}
                     </div>
                   </div>
                   <ProgressBar value={progress} size="sm" showLabel={false} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5 }}>
                     <span style={{ fontSize: '0.72rem', color: 'var(--gray-500)' }}>
-                      {t.subtasks.filter(s=>s.status==='Completed').length}/{t.subtasks.length} subtasks
+                      {subtasks.filter(s=>s.status==='Completed').length}/{subtasks.length} subtasks
                     </span>
                     <span style={{ fontSize: '0.72rem', fontWeight: 700, color: progress === 100 ? 'var(--success-500)' : 'var(--gray-700)' }}>{progress}%</span>
                   </div>

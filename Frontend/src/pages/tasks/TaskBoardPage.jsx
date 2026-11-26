@@ -32,8 +32,19 @@ export default function TaskBoardPage() {
     ? tasks.filter(t => isTaskAssignedToUser(t, currentUser))
     : tasks;
 
+  const normalizeStatus = (status) => {
+    if (!status) return 'To Do';
+    const s = String(status).trim().toLowerCase();
+    if (s === 'to do' || s === 'todo' || s === 'new') return 'To Do';
+    if (s === 'in progress' || s === 'inprogress') return 'In Progress';
+    if (s === 'ongoing') return 'Ongoing';
+    if (s === 'on hold' || s === 'hold' || s === 'pending') return 'On Hold';
+    if (s === 'completed' || s === 'done' || s === 'resolved') return 'Completed';
+    return status;
+  };
+
   const grouped = COLUMNS.reduce((acc, col) => {
-    acc[col.id] = visibleTasks.filter(t => t.status === col.id);
+    acc[col.id] = visibleTasks.filter(t => normalizeStatus(t.status) === col.id);
     return acc;
   }, {});
 
@@ -148,7 +159,7 @@ export default function TaskBoardPage() {
                               {...provided.dragHandleProps}
                             >
                               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
-                                <div className="kanban-card-id">{task.id}</div>
+                                <div className="kanban-card-id">{task.taskNumber || task.id}</div>
                                 <Badge status={task.status} />
                               </div>
                               <div className="kanban-card-title">{task.title}</div>
@@ -181,7 +192,7 @@ export default function TaskBoardPage() {
                                     </div>
                                   ))}
                                 </div>
-                                <Link to={`/tasks/${task.id}`} style={{ fontSize: '0.72rem', color: 'var(--teal-600)', fontWeight: 600 }}>View →</Link>
+                                <Link to={`/tasks/${task.taskNumber || task.id}`} style={{ fontSize: '0.72rem', color: 'var(--teal-600)', fontWeight: 600 }}>View →</Link>
                               </div>
                             </div>
                           )}

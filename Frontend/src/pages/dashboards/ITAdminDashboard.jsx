@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useNotifications } from '../../context/NotificationContext';
-import { getTicketStats, getUser, ROLES, DIVISIONS } from '../../data/mockData';
+import { getTicketStats, getTaskStats, getUser, ROLES, DIVISIONS } from '../../data/mockData';
 import StatCard from '../../components/ui/StatCard';
 import { Badge, CategoryBadge, PriorityBadge, RoleBadge } from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
@@ -32,7 +32,7 @@ const getAvatarColor = (id = '') => {
 export default function ITAdminDashboard() {
   const { currentUser } = useAuth();
   const {
-    tickets, stock, repairs, zoomRequests, users, divisions,
+    tickets, stock, repairs, zoomRequests, users, divisions, tasks,
     createUser, resetUserPassword, toggleUserActive, updateZoomMeetingLink, updateZoomStatus, deleteZoomRequest,
     deleteTicket,
     broadcasts, addBroadcast, toggleBroadcast, removeBroadcast
@@ -79,6 +79,8 @@ export default function ITAdminDashboard() {
   const divisionList = divisions && divisions.length > 0 ? divisions : DIVISIONS;
 
   const stats = getTicketStats(tickets);
+  const taskStats = getTaskStats(null, tasks);
+  const activeTasks = (tasks || []).filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
   const ongoingTickets = tickets.filter(t => ['New', 'Assigned', 'In Progress', 'Pending Parts'].includes(t.status));
   const oldTickets = tickets.filter(t => ['Resolved', 'Closed'].includes(t.status));
   const pendingReassign = tickets.filter(t => t.reassignmentRequest?.status === 'Pending');
@@ -268,6 +270,7 @@ export default function ITAdminDashboard() {
       <div className="stats-grid">
         <StatCard label="Total Accounts" value={users.length} icon={Users} iconBg="var(--sherwood-tan-wash)" iconColor="var(--af-655)" accentColor="var(--sherwood-tan)" sub={`${users.filter(u => ['super_admin', 'it_admin'].includes(u.role)).length} admin accounts`} />
         <StatCard label="Open Tickets" value={stats.open} icon={Ticket} iconBg="var(--sherwood-tan-wash)" iconColor="var(--sherwood-tan-dark)" accentColor="var(--sherwood-tan)" sub={`${stats.total} total`} />
+        <StatCard label="Active Tasks" value={activeTasks.length} icon={CheckSquare} iconBg="var(--sherwood-tan-wash)" iconColor="var(--teal-500)" accentColor="var(--teal-500)" sub={`${taskStats.inProgress} in progress`} />
         <StatCard label="Stock Issues" value={lowStock.length} icon={Package} iconBg="var(--danger-100)" iconColor="var(--danger-500)" accentColor="var(--danger-500)" sub={`${stock.filter(s => s.status === 'Not Available').length} out of stock`} />
         <StatCard label="Overdue Repairs" value={overdueRepairs.length} icon={Wrench} iconBg={overdueRepairs.length > 0 ? 'var(--danger-100)' : 'var(--success-100)'} iconColor={overdueRepairs.length > 0 ? 'var(--danger-500)' : 'var(--success-500)'} accentColor={overdueRepairs.length > 0 ? 'var(--danger-500)' : 'var(--success-500)'} sub="External vendor" />
         <StatCard label="Zoom Sessions" value={upcomingZoom.length} icon={Video} iconBg="var(--sherwood-tan-wash)" iconColor="var(--af-655)" accentColor="var(--sherwood-tan)" sub="Upcoming & pending" />

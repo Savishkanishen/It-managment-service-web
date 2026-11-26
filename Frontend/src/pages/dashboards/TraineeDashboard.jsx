@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { getUser, calcTaskProgress } from '../../data/mockData';
+import { getUser, calcTaskProgress, isTaskAssignedToUser, isTicketAssignedToUser } from '../../data/mockData';
 import StatCard from '../../components/ui/StatCard';
 import { Badge, CategoryBadge, PriorityBadge } from '../../components/ui/Badge';
 import ProgressBar from '../../components/ui/ProgressBar';
@@ -19,13 +19,9 @@ export default function TraineeDashboard() {
   const [reassignReason, setReassignReason] = useState('');
   const [holdModalTask, setHoldModalTask] = useState(null);
 
-  const isMatchUser = (uid) => uid && (
-    String(uid).toLowerCase() === String(currentUser?.id || '').toLowerCase() ||
-    String(uid).toLowerCase() === String(currentUser?.username || '').toLowerCase()
-  );
-  const myTickets = tickets.filter(t => isMatchUser(t.assignedTo) && ['New','Assigned','In Progress','Pending Parts'].includes(t.status));
-  const myTasks = tasks.filter(t => (t.assignees || []).some(isMatchUser) && t.status !== 'Completed' && t.status !== 'Cancelled');
-  const resolvedCount = tickets.filter(t => isMatchUser(t.assignedTo) && ['Resolved','Closed'].includes(t.status)).length;
+  const myTickets = tickets.filter(t => isTicketAssignedToUser(t, currentUser) && ['New','Assigned','In Progress','Pending Parts'].includes(t.status));
+  const myTasks = tasks.filter(t => isTaskAssignedToUser(t, currentUser) && t.status !== 'Completed' && t.status !== 'Cancelled');
+  const resolvedCount = tickets.filter(t => isTicketAssignedToUser(t, currentUser) && ['Resolved','Closed'].includes(t.status)).length;
 
   const handleTaskStatusChange = (task, newStatus) => {
     if (newStatus === 'On Hold' || newStatus === 'Hold' || newStatus === 'Pending') {
@@ -157,7 +153,7 @@ export default function TraineeDashboard() {
               </div>
             ) : myTasks.map(task => {
               const progress = calcTaskProgress(task);
-              const mySubtasks = task.subtasks.filter(s => s.assignee === currentUser.id);
+              const mySubtasks = (task.subtasks || []).filter(s => isTaskAssignedToUser({ assignees: [s.assignee] }, currentUser));
               const isOnHold = task.status === 'On Hold' || task.status === 'Hold';
               return (
                 <div key={task.id} style={{ border: '1.5px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '14px', marginBottom: 10 }}>
@@ -201,7 +197,7 @@ export default function TraineeDashboard() {
                       </select>
                     </div>
 
-                    <Link to={`/tasks/${task.id}`} className="btn btn-secondary btn-sm">
+                    <Link to={`/tasks/${task.taskNumber || task.id}`} className="btn btn-secondary btn-sm">
                       Details & Subtasks <ArrowRight size={12} />
                     </Link>
                   </div>

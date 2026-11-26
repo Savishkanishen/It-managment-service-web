@@ -260,16 +260,18 @@ export const getTaskStats = (userId = null, customTasks = null) => {
   const today = new Date();
   return {
     total: tasks.length,
+    active: tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length,
     completed: tasks.filter(t => t.status === 'Completed').length,
     inProgress: tasks.filter(t => t.status === 'In Progress').length,
     ongoing: tasks.filter(t => t.status === 'Ongoing').length,
-    onHold: tasks.filter(t => t.status === 'On Hold' || t.status === 'Hold').length,
-    toDo: tasks.filter(t => t.status === 'To Do').length,
-    overdue: tasks.filter(t => new Date(t.dueDate) < today && t.status !== 'Completed').length,
+    onHold: tasks.filter(t => t.status === 'On Hold' || t.status === 'Hold' || t.status === 'Pending').length,
+    toDo: tasks.filter(t => t.status === 'To Do' || t.status === 'New').length,
+    overdue: tasks.filter(t => t.dueDate && new Date(t.dueDate) < today && t.status !== 'Completed' && t.status !== 'Cancelled').length,
     dueSoon: tasks.filter(t => {
+      if (!t.dueDate || t.status === 'Completed' || t.status === 'Cancelled') return false;
       const due = new Date(t.dueDate);
       const diff = (due - today) / (1000 * 60 * 60);
-      return diff > 0 && diff <= 48 && t.status !== 'Completed';
+      return diff > 0 && diff <= 48;
     }).length,
   };
 };
@@ -345,15 +347,26 @@ export const isTicketAssignedToUser = (ticket, user) => {
   if (!ticket || !user) return false;
   const uid = String(user.id || '').toLowerCase();
   const uname = String(user.username || '').toLowerCase();
+  const uName = String(user.name || '').toLowerCase();
 
-  const isAssignee = String(ticket.assignedTo || '').toLowerCase() === uid
-    || String(ticket.assignedTo || '').toLowerCase() === uname
-    || String(ticket.assigneeId || '').toLowerCase() === uid
-    || String(ticket.assigneeId || '').toLowerCase() === uname;
+  const userKeys = [uid, uname, uName].filter(Boolean);
+  for (const [uuid, aliases] of Object.entries(USER_UUID_MAP)) {
+    if (aliases.some(a => userKeys.includes(a))) {
+      userKeys.push(uuid.toLowerCase());
+    }
+  }
 
-  const isRequester = String(ticket.requesterId || '').toLowerCase() === uid
-    || String(ticket.requesterId || '').toLowerCase() === uname
-    || String(ticket.reportedBy || '').toLowerCase() === uid;
+  const matchesUser = (val) => {
+    if (!val) return false;
+    const str = String(val).toLowerCase();
+    if (userKeys.includes(str)) return true;
+    const mapped = USER_UUID_MAP[str];
+    if (mapped && mapped.some(a => userKeys.includes(a))) return true;
+    return false;
+  };
+
+  const isAssignee = matchesUser(ticket.assignedTo) || matchesUser(ticket.assigneeId);
+  const isRequester = matchesUser(ticket.requesterId) || matchesUser(ticket.reportedBy);
 
   return isAssignee || isRequester;
 };

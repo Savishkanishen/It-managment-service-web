@@ -94,7 +94,7 @@ export default function MyTasksPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, alignItems: 'flex-start' }}>
                     <div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                        <span className="id-chip">{t.id}</span>
+                        <span className="id-chip">{t.taskNumber || t.id}</span>
                         <Badge status={t.status} />
                       </div>
                       <div style={{ fontWeight: 700, fontSize: '0.875rem' }}>{t.title}</div>
@@ -134,7 +134,7 @@ export default function MyTasksPage() {
                       </select>
                     </div>
 
-                    <Link to={`/tasks/${t.id}`} className="btn btn-secondary btn-sm">
+                    <Link to={`/tasks/${t.taskNumber || t.id}`} className="btn btn-secondary btn-sm">
                       View & Update <ArrowRight size={12} />
                     </Link>
                   </div>
