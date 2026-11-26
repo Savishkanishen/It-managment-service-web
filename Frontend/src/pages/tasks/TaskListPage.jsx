@@ -7,12 +7,12 @@ import { Badge, PriorityBadge } from '../../components/ui/Badge';
 import ProgressBar from '../../components/ui/ProgressBar';
 import HoldReasonModal from '../../components/ui/HoldReasonModal';
 import { calcTaskProgress, getUser, ROLES, isTaskAssignedToUser, USERS } from '../../data/mockData';
-import { Search, Plus, Kanban, Calendar, CheckCircle2, Clock, UserCheck, Layers } from 'lucide-react';
+import { Search, Plus, Kanban, Calendar, CheckCircle2, Clock, UserCheck, Layers, Check, UserPlus } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import { useNotifications } from '../../context/NotificationContext';
 
 export default function TaskListPage() {
-  const { tasks, users, createTask, updateTaskStatus } = useData();
+  const { tasks, users, createTask, updateTaskStatus, assignTask } = useData();
   const { currentUser } = useAuth();
   const { addToast } = useNotifications();
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'active' | 'mine' | 'completed'
@@ -22,6 +22,9 @@ export default function TaskListPage() {
   const [showNew, setShowNew] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [holdModalTask, setHoldModalTask] = useState(null);
+  const [assignModalTask, setAssignModalTask] = useState(null);
+  const [assignModalAssignees, setAssignModalAssignees] = useState([]);
+  const [isSavingAssign, setIsSavingAssign] = useState(false);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -113,6 +116,25 @@ export default function TaskListPage() {
     }
   };
 
+  const openAssignModal = (task) => {
+    setAssignModalTask(task);
+    setAssignModalAssignees(task.assignees || []);
+  };
+
+  const handleSaveAssignment = async () => {
+    if (!assignModalTask) return;
+    setIsSavingAssign(true);
+    try {
+      await assignTask(assignModalTask.id, assignModalAssignees, currentUser);
+      addToast('success', 'Task Assigned', `Assignees for "${assignModalTask.title}" updated in database.`);
+      setAssignModalTask(null);
+    } catch (err) {
+      addToast('error', 'Assignment Error', 'Failed to update assignees: ' + (err.message || 'Server error'));
+    } finally {
+      setIsSavingAssign(false);
+    }
+  };
+
   const toggleAssignee = (id) => {
     setForm(f => ({
       ...f,
@@ -178,28 +200,55 @@ export default function TaskListPage() {
     {
       key: 'assignees',
       label: 'Assignees',
-      render: v => (
-        <div className="avatar-stack">
-          {(v || []).slice(0, 3).map(id => {
-            const u = getUser(id);
-            return u ? (
-              <div
-                key={id}
-                className="avatar avatar-sm"
-                style={{ background: 'var(--teal-500)' }}
-                title={`${u.name} (${u.role || 'Staff'})`}
-              >
-                {(u.avatar || u.name.slice(0, 2)).toUpperCase()}
+      render: (v, row) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="avatar-stack">
+            {(v || []).slice(0, 3).map(id => {
+              const u = getUser(id);
+              return u ? (
+                <div
+                  key={id}
+                  className="avatar avatar-sm"
+                  style={{ background: 'var(--teal-500)' }}
+                  title={`${u.name} (${u.role || 'Staff'})`}
+                >
+                  {(u.avatar || u.name.slice(0, 2)).toUpperCase()}
+                </div>
+              ) : null;
+            })}
+            {(v || []).length > 3 && (
+              <div className="avatar avatar-sm" style={{ background: 'var(--gray-400)' }}>
+                +{(v || []).length - 3}
               </div>
-            ) : null;
-          })}
-          {(v || []).length > 3 && (
-            <div className="avatar avatar-sm" style={{ background: 'var(--gray-400)' }}>
-              +{(v || []).length - 3}
-            </div>
-          )}
-          {(!v || v.length === 0) && (
-            <span style={{ fontSize: '0.75rem', color: 'var(--gray-400)', fontStyle: 'italic' }}>Unassigned</span>
+            )}
+            {(!v || v.length === 0) && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--gray-400)', fontStyle: 'italic' }}>Unassigned</span>
+            )}
+          </div>
+          {isAdmin && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{
+                padding: '2px 8px',
+                fontSize: '0.72rem',
+                height: 'auto',
+                color: (!v || v.length === 0) ? 'var(--teal-700)' : 'var(--gray-600)',
+                background: (!v || v.length === 0) ? 'rgba(6, 182, 212, 0.12)' : 'var(--gray-100)',
+                border: `1px solid ${(!v || v.length === 0) ? 'var(--teal-400)' : 'var(--gray-200)'}`,
+                borderRadius: 'var(--radius-sm)',
+                fontWeight: (!v || v.length === 0) ? 700 : 500,
+                cursor: 'pointer'
+              }}
+              title="Assign or reassign team members"
+              onClick={(e) => {
+                e.stopPropagation();
+                openAssignModal(row);
+              }}
+            >
+              <UserPlus size={12} style={{ marginRight: 3, verticalAlign: 'middle' }} />
+              {(!v || v.length === 0) ? 'Assign' : 'Edit'}
+            </button>
           )}
         </div>
       )
@@ -565,6 +614,80 @@ export default function TaskListPage() {
         onSubmit={handleHoldSubmit}
         taskTitle={holdModalTask?.title || ''}
       />
+
+      {/* Quick Task Assign Modal for Admins */}
+      <Modal
+        isOpen={!!assignModalTask}
+        onClose={() => setAssignModalTask(null)}
+        title={`Assign Task — ${assignModalTask?.taskNumber || assignModalTask?.id}`}
+        size="md"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setAssignModalTask(null)} disabled={isSavingAssign}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={handleSaveAssignment} disabled={isSavingAssign}>
+              <Check size={14} /> {isSavingAssign ? 'Saving to Database...' : 'Save Assignees'}
+            </button>
+          </>
+        }
+      >
+        <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: 14 }}>
+          Assign or reassign team members to: <strong>{assignModalTask?.title}</strong>
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
+          {technicians.map(u => {
+            const selected = assignModalAssignees.includes(u.id) || assignModalAssignees.includes(u.username);
+            return (
+              <div
+                key={u.id}
+                onClick={() => {
+                  setAssignModalAssignees(prev =>
+                    selected
+                      ? prev.filter(a => a !== u.id && a !== u.username)
+                      : [...prev, u.id]
+                  );
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  border: `1.5px solid ${selected ? 'var(--teal-500)' : 'var(--border-color)'}`,
+                  background: selected ? 'rgba(6, 182, 212, 0.08)' : 'white',
+                  cursor: 'pointer',
+                  transition: 'all var(--transition-fast)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div className="avatar avatar-sm" style={{ background: selected ? 'var(--teal-500)' : 'var(--gray-400)' }}>
+                    {(u.avatar || u.name.slice(0, 2)).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{u.name}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--gray-400)' }}>{u.role ? u.role.replace('_', ' ') : 'Staff'} • {u.division || 'IT Department'}</div>
+                  </div>
+                </div>
+                <div style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  border: `2px solid ${selected ? 'var(--teal-500)' : 'var(--gray-300)'}`,
+                  background: selected ? 'var(--teal-500)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: '12px'
+                }}>
+                  {selected && '✓'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Modal>
     </div>
   );
 }

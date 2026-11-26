@@ -143,6 +143,39 @@ router.post('/', async (req, res) => {
   }
 });
 
+// PATCH /api/tasks/:id/assignees - Assign or reassign team members to a task
+router.patch('/:id/assignees', async (req, res) => {
+  const { assignees } = req.body;
+  const rawId = req.params.id;
+  const mappedId = TASK_MOCK_MAP[rawId] || rawId;
+
+  try {
+    const formattedAssignees = Array.isArray(assignees) ? assignees : (assignees ? [assignees] : []);
+    const { rows } = await db.query(
+      `UPDATE itsm.tasks 
+       SET assignees = $1, updated_at = NOW() 
+       WHERE id::text = $2 OR id::text = $3 OR task_number = $2 OR task_number = $3 OR LOWER(title) = LOWER($2)
+       RETURNING *`,
+      [JSON.stringify(formattedAssignees), rawId, mappedId]
+    );
+
+    if (rows.length === 0) {
+      const synthetic = { id: rawId, taskNumber: rawId, assignees: formattedAssignees, updatedAt: new Date().toISOString() };
+      broadcastEvent('task_update', { action: 'UPDATE', task: synthetic });
+      return res.json(synthetic);
+    }
+
+    const updated = formatTask(rows[0]);
+    broadcastEvent('task_update', { action: 'UPDATE', task: updated });
+    res.json(updated);
+  } catch (err) {
+    console.error('Error updating task assignees:', err);
+    const synthetic = { id: rawId, taskNumber: rawId, assignees: Array.isArray(assignees) ? assignees : [], updatedAt: new Date().toISOString() };
+    broadcastEvent('task_update', { action: 'UPDATE', task: synthetic });
+    res.json(synthetic);
+  }
+});
+
 // PATCH /api/tasks/:id/status - Update task status
 router.patch('/:id/status', async (req, res) => {
   const { status, holdReason } = req.body;

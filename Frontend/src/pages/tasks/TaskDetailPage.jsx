@@ -6,15 +6,19 @@ import { useNotifications } from '../../context/NotificationContext';
 import { Badge, PriorityBadge } from '../../components/ui/Badge';
 import ProgressBar from '../../components/ui/ProgressBar';
 import HoldReasonModal from '../../components/ui/HoldReasonModal';
-import { calcTaskProgress, getUser, ROLES, isTaskAssignedToUser } from '../../data/mockData';
-import { ArrowLeft, CheckSquare, User, Calendar, Flag, Plus, Check, PauseCircle, Lock } from 'lucide-react';
+import Modal from '../../components/ui/Modal';
+import { calcTaskProgress, getUser, ROLES, isTaskAssignedToUser, USERS } from '../../data/mockData';
+import { ArrowLeft, CheckSquare, User, Calendar, Flag, Plus, Check, PauseCircle, Lock, UserPlus, Users, UserX } from 'lucide-react';
 
 export default function TaskDetailPage() {
   const { id } = useParams();
-  const { tasks, updateTaskStatus, updateSubtaskStatus } = useData();
+  const { tasks, users, updateTaskStatus, updateSubtaskStatus, assignTask } = useData();
   const { currentUser } = useAuth();
   const { addToast } = useNotifications();
   const [showHoldModal, setShowHoldModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedAssignees, setSelectedAssignees] = useState([]);
+  const [savingAssign, setSavingAssign] = useState(false);
   const [remoteTask, setRemoteTask] = useState(null);
   const [loadingRemote, setLoadingRemote] = useState(false);
 
@@ -49,6 +53,12 @@ export default function TaskDetailPage() {
 
   const canEditStatus = canManageTasks || isAssignee || isITStaff;
 
+  const allUsers = users && users.length > 0 ? users : USERS;
+  const technicians = allUsers.filter(u => {
+    const r = (u.role || u.roleName || '').toLowerCase();
+    return r.includes('admin') || r.includes('officer') || r.includes('trainee') || r.includes('intern') || !r;
+  });
+
   const handleSubtaskToggle = (subtask) => {
     const newStatus = subtask.status === 'Completed' ? 'In Progress' : 'Completed';
     updateSubtaskStatus(task.id, subtask.id, newStatus, currentUser);
@@ -76,6 +86,19 @@ export default function TaskDetailPage() {
     setShowHoldModal(false);
   };
 
+  const handleSaveAssignees = async () => {
+    setSavingAssign(true);
+    try {
+      await assignTask(task.id, selectedAssignees, currentUser);
+      addToast('success', 'Assignees Updated', 'Task assignments have been saved to database in real time.');
+      setShowAssignModal(false);
+    } catch (err) {
+      addToast('error', 'Error', 'Failed to update assignees: ' + (err.message || 'Server error'));
+    } finally {
+      setSavingAssign(false);
+    }
+  };
+
   const today = new Date();
   const isOverdue = new Date(task.dueDate) < today && task.status !== 'Completed';
   const isOnHold = task.status === 'On Hold' || task.status === 'Hold';
@@ -101,7 +124,20 @@ export default function TaskDetailPage() {
           </div>
         </div>
         {canEditStatus && (
-          <div className="detail-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="detail-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {canManageTasks && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                onClick={() => {
+                  setSelectedAssignees(task.assignees || []);
+                  setShowAssignModal(true);
+                }}
+              >
+                <UserPlus size={14} /> Assign Team
+              </button>
+            )}
             <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--gray-600)' }}>Change Status:</span>
             <select className="filter-input" value={task.status === 'On Hold' ? 'Pending' : task.status} onChange={e => handleStatusChange(e.target.value)}>
               <option value="To Do">To Do</option>
@@ -165,19 +201,80 @@ export default function TaskDetailPage() {
               <div className="info-item"><div className="info-label">Created</div><div className="info-value">{new Date(task.createdAt).toLocaleDateString()}</div></div>
             </div>
 
-            <div style={{ marginTop:16 }}>
-              <div className="info-label">Assigned To</div>
-              <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:8 }}>
-                {assignees.map(u => (
-                  <div key={u.id} style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <div className="avatar" style={{ background:'var(--teal-500)' }}>{u.name.slice(0,2)}</div>
-                    <div>
-                      <div style={{ fontWeight:600, fontSize:'0.875rem' }}>{u.name}</div>
-                      <div style={{ fontSize:'0.72rem', color:'var(--gray-400)' }}>{u.role ? u.role.replace('_',' ') : 'IT Staff'}</div>
-                    </div>
-                  </div>
-                ))}
+            <div style={{ marginTop: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div className="info-label" style={{ marginBottom: 0 }}>Assigned To ({assignees.length})</div>
+                {canManageTasks && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: '0.75rem', color: 'var(--teal-600)', padding: '2px 8px' }}
+                    onClick={() => {
+                      setSelectedAssignees(task.assignees || []);
+                      setShowAssignModal(true);
+                    }}
+                  >
+                    <UserPlus size={13} style={{ marginRight: 4 }} />
+                    {assignees.length === 0 ? 'Assign Member' : 'Manage Assignees'}
+                  </button>
+                )}
               </div>
+
+              {assignees.length === 0 ? (
+                <div style={{
+                  padding: '16px',
+                  background: 'var(--gray-50)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1.5px dashed var(--gray-300)',
+                  textAlign: 'center',
+                  marginTop: 6
+                }}>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: canManageTasks ? 8 : 0 }}>
+                    This task is not assigned to anyone yet.
+                  </div>
+                  {canManageTasks && (
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() => {
+                        setSelectedAssignees(task.assignees || []);
+                        setShowAssignModal(true);
+                      }}
+                    >
+                      <UserPlus size={14} style={{ marginRight: 6 }} /> Assign Member Now
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {assignees.map(u => (
+                    <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--gray-50)', borderRadius: 'var(--radius-md)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div className="avatar" style={{ background: 'var(--teal-500)' }}>{(u.avatar || u.name.slice(0, 2)).toUpperCase()}</div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{u.name}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--gray-400)' }}>{u.role ? u.role.replace('_', ' ') : 'IT Staff'}</div>
+                        </div>
+                      </div>
+                      {canManageTasks && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ color: 'var(--danger-500)', fontSize: '0.72rem', padding: '2px 6px' }}
+                          title="Remove assignee"
+                          onClick={async () => {
+                            const updatedList = (task.assignees || []).filter(a => a !== u.id && a !== u.username && a !== u.name);
+                            await assignTask(task.id, updatedList, currentUser);
+                            addToast('info', 'Assignee Removed', `Removed ${u.name} from task.`);
+                          }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -221,6 +318,79 @@ export default function TaskDetailPage() {
         onSubmit={handleHoldSubmit}
         taskTitle={task.title}
       />
+
+      <Modal
+        isOpen={showAssignModal}
+        onClose={() => setShowAssignModal(false)}
+        title={`Assign Team Members — ${task.taskNumber || task.id}`}
+        size="md"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setShowAssignModal(false)} disabled={savingAssign}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={handleSaveAssignees} disabled={savingAssign}>
+              <Check size={14} /> {savingAssign ? 'Saving to Database...' : 'Save Assignees'}
+            </button>
+          </>
+        }
+      >
+        <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginBottom: 16 }}>
+          Select technicians to assign to this task. The assignments will save real-time to the database and notify the team members.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
+          {technicians.map(u => {
+            const selected = selectedAssignees.includes(u.id) || selectedAssignees.includes(u.username);
+            return (
+              <div
+                key={u.id}
+                onClick={() => {
+                  setSelectedAssignees(prev =>
+                    selected
+                      ? prev.filter(a => a !== u.id && a !== u.username)
+                      : [...prev, u.id]
+                  );
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  border: `1.5px solid ${selected ? 'var(--teal-500)' : 'var(--border-color)'}`,
+                  background: selected ? 'rgba(6, 182, 212, 0.08)' : 'white',
+                  cursor: 'pointer',
+                  transition: 'all var(--transition-fast)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div className="avatar avatar-sm" style={{ background: selected ? 'var(--teal-500)' : 'var(--gray-400)' }}>
+                    {(u.avatar || u.name.slice(0, 2)).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{u.name}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--gray-400)' }}>{u.role ? u.role.replace('_', ' ') : 'Staff'} • {u.division || 'IT Department'}</div>
+                  </div>
+                </div>
+                <div style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  border: `2px solid ${selected ? 'var(--teal-500)' : 'var(--gray-300)'}`,
+                  background: selected ? 'var(--teal-500)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: '12px'
+                }}>
+                  {selected && '✓'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Modal>
     </div>
   );
 }

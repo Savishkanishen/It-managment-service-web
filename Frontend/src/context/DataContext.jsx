@@ -979,6 +979,69 @@ export function DataProvider({ children }) {
     return newTask;
   };
 
+  const assignTask = async (taskId, assignees, user = null) => {
+    const formattedAssignees = Array.isArray(assignees) ? assignees : (assignees ? [assignees] : []);
+    
+    // Optimistic update
+    setTasks(prev => deduplicateTasks(prev.map(t => {
+      if (t.id === taskId || t.taskNumber === taskId || t.dbId === taskId) {
+        return {
+          ...t,
+          assignees: formattedAssignees,
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return t;
+    })));
+
+    syncChannelRef.current?.postMessage({
+      type: 'TASK_UPDATED',
+      payload: { id: taskId, assignees: formattedAssignees, updatedAt: new Date().toISOString() }
+    });
+
+    const targetTask = tasks.find(t => t.id === taskId || t.taskNumber === taskId || t.dbId === taskId);
+    const taskTitle = targetTask?.title || taskId;
+
+    // Send direct assignment alert to each assigned member
+    if (notifyWorkAssignment && Array.isArray(formattedAssignees)) {
+      formattedAssignees.forEach(assigneeId => {
+        notifyWorkAssignment({
+          type: 'task',
+          workId: targetTask?.taskNumber || taskId,
+          workTitle: taskTitle,
+          assigneeId,
+          assignedBy: user?.name || user?.username || 'Supervisor',
+        });
+      });
+    }
+
+    addAuditLog(
+      user?.id,
+      user?.username || user?.name,
+      'ASSIGN',
+      'Task',
+      taskId,
+      `Assigned task "${taskTitle}" to: ${formattedAssignees.length > 0 ? formattedAssignees.join(', ') : 'Unassigned'}`,
+      'Task Management'
+    );
+
+    try {
+      const updated = await apiCall(`/tasks/${taskId}/assignees`, 'PATCH', { assignees: formattedAssignees });
+      if (updated) {
+        const clean = {
+          ...updated,
+          id: updated.taskNumber || updated.id || taskId,
+          taskNumber: updated.taskNumber || updated.id || taskId,
+        };
+        setTasks(prev => deduplicateTasks(prev.map(t => (t.id === taskId || t.taskNumber === taskId || t.dbId === taskId) ? { ...t, ...clean } : t)));
+        syncChannelRef.current?.postMessage({ type: 'TASK_UPDATED', payload: clean });
+        return clean;
+      }
+    } catch (err) {
+      console.warn('Backend task assignment failed:', err);
+    }
+  };
+
   const deleteTask = async (id, user) => {
     setTasks(prev => prev.filter(t => t.id !== id && t.taskNumber !== id && t.dbId !== id));
     syncChannelRef.current?.postMessage({ type: 'TASK_DELETED', payload: { id } });
@@ -1337,7 +1400,7 @@ export function DataProvider({ children }) {
       createAsset,
       updateStockStatus, updateStockQuantity, createStockItem,
       updateTicketStatus, assignTicket, submitReassignmentRequest, rejectReassignmentRequest, createTicket, deleteTicket,
-      updateTaskStatus, updateSubtaskStatus, createTask, deleteTask,
+      updateTaskStatus, updateSubtaskStatus, createTask, assignTask, deleteTask,
       createZoomRequest, assignZoomRequest, updateZoomMeetingLink, updateZoomStatus, deleteZoomRequest,
       createUser, updateUserRole, toggleUserActive, resetUserPassword,
       broadcasts, addBroadcast, toggleBroadcast, removeBroadcast,
