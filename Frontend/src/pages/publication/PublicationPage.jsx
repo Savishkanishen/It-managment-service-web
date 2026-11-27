@@ -4,12 +4,12 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { Badge } from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { getUser } from '../../data/mockData';
-import { Globe, Plus, CheckCircle, Clock, Upload } from 'lucide-react';
+import { getUser, generatePublicationId } from '../../data/mockData';
+import { Globe, Plus, CheckCircle, Clock, Upload, Trash2 } from 'lucide-react';
 import { ROLES } from '../../data/mockData';
 
 export default function PublicationPage() {
-  const { publications, approvePublication, createPublication } = useData();
+  const { publications, approvePublication, createPublication, deletePublication } = useData();
   const { currentUser } = useAuth();
   const { addToast } = useNotifications();
   const [showNew, setShowNew] = useState(false);
@@ -22,10 +22,19 @@ export default function PublicationPage() {
     addToast('success', 'Published', 'Publication has been approved and published');
   };
 
+  const handleDelete = (pub) => {
+    const pubId = pub.referenceNumber || pub.id;
+    if (window.confirm(`Are you sure you want to delete publication "${pub.title}" (${pubId})?`)) {
+      deletePublication(pub.id, currentUser);
+      addToast('info', 'Deleted', `Publication ${pubId} has been deleted`);
+    }
+  };
+
   const handleCreate = () => {
     if (!form.title) { addToast('error', 'Required', 'Title is required'); return; }
-    createPublication(form, currentUser);
-    addToast('success', 'Submitted', 'Publication request submitted for review');
+    const computedId = generatePublicationId(new Date(), publications);
+    createPublication({ ...form, id: computedId, referenceNumber: computedId }, currentUser);
+    addToast('success', 'Submitted', `Publication request ${computedId} submitted for review`);
     setShowNew(false);
     setForm({ title: '', content: '', attachments: [] });
   };
@@ -60,11 +69,13 @@ export default function PublicationPage() {
           const requestedBy = getUser(pub.requestedBy);
           const publishedBy = getUser(pub.publishedBy);
           const approvedBy = getUser(pub.approvedBy);
+          const pubDisplayId = pub.referenceNumber || pub.id;
+          const canDelete = isAdmin || pub.requestedBy === currentUser?.id;
           return (
             <div key={pub.id} className="pub-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div>
-                  <span className="id-chip" style={{ marginBottom: 4, display: 'inline-block' }}>{pub.id}</span>
+                  <span className="id-chip" style={{ marginBottom: 4, display: 'inline-block' }}>{pubDisplayId}</span>
                   <div className="pub-title">{pub.title}</div>
                 </div>
                 <Badge status={pub.status} />
@@ -72,20 +83,34 @@ export default function PublicationPage() {
               <div className="pub-meta">
                 {requestedBy && <span style={{ fontSize: '0.78rem', color: 'var(--gray-500)' }}>Requested by: <strong>{requestedBy.name}</strong></span>}
                 <span style={{ fontSize: '0.78rem', color: 'var(--gray-500)' }}><Clock size={11} style={{ display: 'inline' }} /> {new Date(pub.requestedAt).toLocaleString()}</span>
-                {pub.status === 'Published' && publishedBy && (
-                  <span style={{ fontSize: '0.78rem', color: 'var(--success-700)' }}><CheckCircle size={11} style={{ display: 'inline' }} /> Published by {publishedBy.name}</span>
+                {pub.status === 'Published' && (publishedBy || approvedBy) && (
+                  <span style={{ fontSize: '0.78rem', color: 'var(--success-700)' }}>
+                    <CheckCircle size={11} style={{ display: 'inline' }} /> Published by {(publishedBy || approvedBy)?.name}
+                  </span>
                 )}
-                {pub.attachments.length > 0 && (
+                {pub.attachments && pub.attachments.length > 0 && (
                   <span style={{ fontSize: '0.78rem', color: 'var(--gray-500)' }}>
                     <Upload size={11} style={{ display: 'inline' }} /> {pub.attachments.length} attachment{pub.attachments.length > 1 ? 's' : ''}
                   </span>
                 )}
               </div>
-              {isAdmin && pub.status === 'Pending Review' && (
-                <div style={{ marginTop: 12 }}>
-                  <button className="btn btn-success btn-sm" onClick={() => handleApprove(pub.id)}>
-                    <CheckCircle size={13} /> Approve & Publish
-                  </button>
+              {(isAdmin || canDelete) && (
+                <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {isAdmin && pub.status === 'Pending Review' && (
+                    <button className="btn btn-success btn-sm" onClick={() => handleApprove(pub.id)}>
+                      <CheckCircle size={13} /> Approve & Publish
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      style={{ color: 'var(--danger-500)', borderColor: 'var(--danger-200)' }}
+                      onClick={() => handleDelete(pub)}
+                      title="Delete publication"
+                    >
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -99,6 +124,10 @@ export default function PublicationPage() {
           <button className="btn btn-primary" onClick={handleCreate}><Globe size={14} /> Submit for Review</button>
         </>}
       >
+        <div style={{ marginBottom: 16, padding: '10px 14px', background: 'var(--gray-50)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--gray-500)' }}>Assigned Publication ID (Year-Month-Date-Time):</div>
+          <span className="id-chip" style={{ fontWeight: 600 }}>{generatePublicationId(new Date(), publications)}</span>
+        </div>
         <div className="form-group">
           <label className="form-label">Publication Title <span className="required">*</span></label>
           <input className="form-input" placeholder="e.g., Scholarship Application Portal Launch" value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} />

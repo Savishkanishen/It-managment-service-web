@@ -262,6 +262,9 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='itsm' AND table_name='publications' AND column_name='requested_at') THEN
     ALTER TABLE itsm.publications ADD COLUMN requested_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP;
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='itsm' AND table_name='publications' AND column_name='reference_number') THEN
+    ALTER TABLE itsm.publications ADD COLUMN reference_number character varying(100);
+  END IF;
 
   -- itsm.zoom_requests enhancements
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='itsm' AND table_name='zoom_requests' AND column_name='reference_number') THEN
@@ -510,29 +513,32 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET reference_number = EXCLUDED.reference_number, branch = EXCLUDED.branch;
 
 -- 13. PUBLICATIONS SEED
-INSERT INTO itsm.publications (id, title, content, status, requested_by, approved_by, published_by, published_at, attachments)
+INSERT INTO itsm.publications (id, title, content, status, requested_by, approved_by, published_by, published_at, attachments, reference_number)
 VALUES
   (
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Scholarship Application Portal Launch Notice',
     'Official notice regarding the opening of the 2027 Scholarship Applications portal...',
     'Published', '68783080-af72-4144-a3cc-2ab166fc0446', 'ed08ee60-c54b-40f5-8273-34c5439eaa8b',
     'cf9ee99c-d1dc-4805-8b25-69909a366d58', '2026-09-10 12:00:00+05:30',
-    '["scholarship_notice_2027.pdf"]'::jsonb
+    '["scholarship_notice_2027.pdf"]'::jsonb,
+    '2026-09-08-0900'
   ),
   (
     'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Ministry Annual Report 2025 — Web Upload',
     'Annual report document for public portal...',
     'Pending Review', '68783080-af72-4144-a3cc-2ab166fc0446', NULL, NULL, NULL,
-    '["annual_report_2025.pdf", "summary_2025.docx"]'::jsonb
+    '["annual_report_2025.pdf", "summary_2025.docx"]'::jsonb,
+    '2026-09-15-1400'
   ),
   (
     'cccccccc-cccc-cccc-cccc-cccccccccccc', 'Updated Contact Directory',
     'Updated divisional contacts and phone directory...',
     'Published', '68783080-af72-4144-a3cc-2ab166fc0446', 'ed08ee60-c54b-40f5-8273-34c5439eaa8b',
     '22222222-2222-2222-2222-222222222201', '2026-09-05 11:00:00+05:30',
-    '[]'::jsonb
+    '[]'::jsonb,
+    '2026-09-03-1000'
   )
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET reference_number = EXCLUDED.reference_number;
 
 -- 14. AUDIT LOGS SEED
 INSERT INTO itsm.audit_logs (id, user_id, action, entity_type, entity_id, description, module, created_at)

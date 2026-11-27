@@ -7,6 +7,7 @@ import {
   getTicketStats as helperGetTicketStats,
   getTaskStats as helperGetTaskStats,
   generateZoomMeetingId,
+  generatePublicationId,
 } from '../data/mockData';
 
 const DataContext = createContext(null);
@@ -104,6 +105,45 @@ function mergeRemoteZoom(localZoom, remoteZoom) {
   return Array.from(new Set(resultMap.values())).filter(z => !deletedIds.includes(z.id));
 }
 
+function deduplicateTickets(ticketsList) {
+  if (!Array.isArray(ticketsList)) return [];
+  let deletedIds = [];
+  try {
+    deletedIds = JSON.parse(localStorage.getItem('itsm_deleted_ticket_ids') || '[]');
+  } catch (e) {}
+
+  const seenIds = new Set();
+  const seenNumbers = new Set();
+  const seenContentKeys = new Set();
+  const unique = [];
+
+  for (const t of ticketsList) {
+    if (!t) continue;
+    const cleanId = t.ticketNumber || (t.id && String(t.id).startsWith('TKT-') ? t.id : (t.ticketNumber || t.id));
+    if (deletedIds.includes(t.id) || deletedIds.includes(t.ticketNumber) || deletedIds.includes(cleanId)) continue;
+
+    const contentKey = `${(t.title || '').trim().toLowerCase()}::${(t.description || '').trim().toLowerCase()}`;
+
+    if (cleanId && seenIds.has(cleanId)) continue;
+    if (t.id && seenIds.has(t.id)) continue;
+    if (t.ticketNumber && seenNumbers.has(t.ticketNumber)) continue;
+    if (contentKey && contentKey.length > 5 && seenContentKeys.has(contentKey)) continue;
+
+    if (cleanId) seenIds.add(cleanId);
+    if (t.id) seenIds.add(t.id);
+    if (t.ticketNumber) seenNumbers.add(t.ticketNumber);
+    if (contentKey && contentKey.length > 5) seenContentKeys.add(contentKey);
+
+    unique.push({
+      ...t,
+      id: cleanId || t.id,
+      ticketNumber: cleanId || t.ticketNumber,
+      rawId: t.rawId || t.id,
+    });
+  }
+  return unique;
+}
+
 function mergeRemoteTickets(localTickets, remoteTickets) {
   let deletedIds = [];
   try {
@@ -111,34 +151,40 @@ function mergeRemoteTickets(localTickets, remoteTickets) {
   } catch (e) {}
 
   if (!Array.isArray(remoteTickets) || remoteTickets.length === 0) {
-    return localTickets.filter(t => !deletedIds.includes(t.id) && !deletedIds.includes(t.ticketNumber));
+    return deduplicateTickets(localTickets.filter(t => !deletedIds.includes(t.id) && !deletedIds.includes(t.ticketNumber)));
   }
 
   const resultMap = new Map();
 
-  localTickets.filter(t => !deletedIds.includes(t.id) && !deletedIds.includes(t.ticketNumber)).forEach(t => {
+  deduplicateTickets(localTickets.filter(t => !deletedIds.includes(t.id) && !deletedIds.includes(t.ticketNumber))).forEach(t => {
     if (t.id) resultMap.set(t.id, t);
     if (t.ticketNumber) resultMap.set(t.ticketNumber, t);
   });
 
   remoteTickets.forEach(rt => {
     if (deletedIds.includes(rt.id) || deletedIds.includes(rt.ticketNumber)) return;
-    const key = rt.id || rt.ticketNumber;
-    const local = resultMap.get(rt.id) || (rt.ticketNumber ? resultMap.get(rt.ticketNumber) : null);
+    const cleanId = rt.ticketNumber || (rt.id && String(rt.id).startsWith('TKT-') ? rt.id : (rt.ticketNumber || rt.id));
+    const normalized = {
+      ...rt,
+      id: cleanId,
+      ticketNumber: cleanId,
+      rawId: rt.rawId || rt.id
+    };
+    const local = resultMap.get(normalized.id) || (normalized.ticketNumber ? resultMap.get(normalized.ticketNumber) : null);
     if (!local) {
-      resultMap.set(key, rt);
+      resultMap.set(normalized.id, normalized);
     } else {
       const localResolved = local.status === 'Resolved' || local.status === 'Closed';
-      const remoteResolved = rt.status === 'Resolved' || rt.status === 'Closed';
+      const remoteResolved = normalized.status === 'Resolved' || normalized.status === 'Closed';
       if (localResolved && !remoteResolved) {
-        resultMap.set(local.id, { ...rt, ...local, status: local.status });
+        resultMap.set(local.id, { ...normalized, ...local, status: local.status });
       } else {
-        resultMap.set(local.id, { ...local, ...rt });
+        resultMap.set(local.id, { ...local, ...normalized });
       }
     }
   });
 
-  return Array.from(new Set(resultMap.values())).filter(t => !deletedIds.includes(t.id) && !deletedIds.includes(t.ticketNumber));
+  return deduplicateTickets(Array.from(new Set(resultMap.values())));
 }
 
 function generateRepairReferenceNumber(existingRepairs, dateStr) {
@@ -279,7 +325,28 @@ export function DataProvider({ children }) {
     } catch (e) {}
     return ZOOM_REQUESTS;
   });
-  const [publications, setPublications] = useState(PUBLICATIONS);
+  const [publications, setPublications] = useState(() => {
+    let deletedIds = [];
+    try {
+      deletedIds = JSON.parse(localStorage.getItem('itsm_deleted_publication_ids') || '[]');
+    } catch (e) {}
+    try {
+      const saved = localStorage.getItem('itsm_publications');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter(p => !deletedIds.includes(p.id) && !deletedIds.includes(p.referenceNumber));
+        }
+      }
+    } catch (e) {}
+    return PUBLICATIONS.filter(p => !deletedIds.includes(p.id) && !deletedIds.includes(p.referenceNumber));
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('itsm_publications', JSON.stringify(publications));
+    } catch (e) {}
+  }, [publications]);
   const [tasks, setTasks] = useState(() => {
     try {
       const saved = localStorage.getItem('itsm_tasks');
@@ -478,11 +545,20 @@ export function DataProvider({ children }) {
           setZoomRequests(prev => prev.filter(z => z.id !== payload.id && z.id !== payload.mappedId));
         } else if (type === 'TICKET_UPDATED' && payload) {
           setTickets(prev => {
-            const match = prev.find(t => t.id === payload.id || t.ticketNumber === (payload.ticketNumber || payload.id));
-            if (match) {
-              return prev.map(t => (t.id === match.id) ? { ...t, ...payload } : t);
+            const incoming = payload;
+            const matchIndex = prev.findIndex(t =>
+              t.id === incoming.id ||
+              t.ticketNumber === (incoming.ticketNumber || incoming.id) ||
+              (incoming.ticketNumber && t.id === incoming.ticketNumber) ||
+              (t.rawId && incoming.rawId && t.rawId === incoming.rawId) ||
+              (t.title && incoming.title && t.title.toLowerCase() === incoming.title.toLowerCase() && t.description === incoming.description)
+            );
+            if (matchIndex !== -1) {
+              const updated = [...prev];
+              updated[matchIndex] = { ...updated[matchIndex], ...incoming };
+              return deduplicateTickets(updated);
             }
-            return [payload, ...prev];
+            return deduplicateTickets([incoming, ...prev]);
           });
         } else if (type === 'TICKET_DELETED' && payload) {
           setTickets(prev => prev.filter(t => t.id !== payload.id && t.ticketNumber !== payload.id && t.id !== payload.mappedId));
@@ -505,6 +581,24 @@ export function DataProvider({ children }) {
           });
         } else if (type === 'REPAIR_DELETED' && payload) {
           setRepairs(prev => prev.filter(r => r.id !== payload.id && r.referenceNumber !== payload.id && r.id !== payload.mappedId));
+        } else if (type === 'PUBLICATION_UPDATED' && payload) {
+          setPublications(prev => {
+            const incoming = payload;
+            const matchIndex = prev.findIndex(p =>
+              p.id === incoming.id ||
+              p.referenceNumber === (incoming.referenceNumber || incoming.id) ||
+              (incoming.referenceNumber && p.id === incoming.referenceNumber) ||
+              (p.title && incoming.title && p.title.toLowerCase() === incoming.title.toLowerCase())
+            );
+            if (matchIndex !== -1) {
+              const updated = [...prev];
+              updated[matchIndex] = { ...updated[matchIndex], ...incoming };
+              return updated;
+            }
+            return [incoming, ...prev];
+          });
+        } else if (type === 'PUBLICATION_DELETED' && payload) {
+          setPublications(prev => prev.filter(p => p.id !== payload.id && p.referenceNumber !== payload.id && p.id !== payload.mappedId));
         }
       };
 
@@ -582,11 +676,20 @@ export function DataProvider({ children }) {
               setTickets(prev => prev.filter(t => t.id !== data.id && t.ticketNumber !== data.id && t.id !== data.mappedId));
             } else if (data.ticket) {
               setTickets(prev => {
-                const match = prev.find(t => t.id === data.ticket.id || t.ticketNumber === (data.ticket.ticketNumber || data.ticket.id));
-                if (match) {
-                  return prev.map(t => (t.id === match.id) ? { ...t, ...data.ticket } : t);
+                const incoming = data.ticket;
+                const matchIndex = prev.findIndex(t =>
+                  t.id === incoming.id ||
+                  t.ticketNumber === (incoming.ticketNumber || incoming.id) ||
+                  (incoming.ticketNumber && t.id === incoming.ticketNumber) ||
+                  (t.rawId && incoming.rawId && t.rawId === incoming.rawId) ||
+                  (t.title && incoming.title && t.title.toLowerCase() === incoming.title.toLowerCase() && t.description === incoming.description)
+                );
+                if (matchIndex !== -1) {
+                  const updated = [...prev];
+                  updated[matchIndex] = { ...updated[matchIndex], ...incoming };
+                  return deduplicateTickets(updated);
                 }
-                return [data.ticket, ...prev];
+                return deduplicateTickets([incoming, ...prev]);
               });
             }
           } catch (err) {
@@ -622,6 +725,33 @@ export function DataProvider({ children }) {
           }
         });
 
+        es.addEventListener('publication_update', (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.action === 'DELETE' && data.id) {
+              setPublications(prev => prev.filter(p => p.id !== data.id && p.referenceNumber !== data.id && p.id !== data.mappedId));
+            } else if (data.publication) {
+              setPublications(prev => {
+                const incoming = data.publication;
+                const matchIndex = prev.findIndex(p =>
+                  p.id === incoming.id ||
+                  p.referenceNumber === (incoming.referenceNumber || incoming.id) ||
+                  (incoming.referenceNumber && p.id === incoming.referenceNumber) ||
+                  (p.title && incoming.title && p.title.toLowerCase() === incoming.title.toLowerCase())
+                );
+                if (matchIndex !== -1) {
+                  const updated = [...prev];
+                  updated[matchIndex] = { ...updated[matchIndex], ...incoming };
+                  return updated;
+                }
+                return [incoming, ...prev];
+              });
+            }
+          } catch (err) {
+            console.error('Error parsing publication_update event:', err);
+          }
+        });
+
         es.onerror = () => {
           if (es) {
             es.close();
@@ -640,10 +770,11 @@ export function DataProvider({ children }) {
     // 3. Periodic Synchronization for tasks, meetings & tickets (Every 4 seconds + on tab focus)
     const refreshLiveResources = async () => {
       try {
-        const [taskRes, zoomRes, ticketRes] = await Promise.allSettled([
+        const [taskRes, zoomRes, ticketRes, pubRes] = await Promise.allSettled([
           fetch(`${API_BASE}/tasks`),
           fetch(`${API_BASE}/zoom-requests`),
-          fetch(`${API_BASE}/tickets`)
+          fetch(`${API_BASE}/tickets`),
+          fetch(`${API_BASE}/publications`)
         ]);
         if (taskRes.status === 'fulfilled' && taskRes.value.ok) {
           const freshTasks = await taskRes.value.json().catch(() => null);
@@ -661,6 +792,16 @@ export function DataProvider({ children }) {
           const freshTickets = await ticketRes.value.json().catch(() => null);
           if (Array.isArray(freshTickets) && freshTickets.length > 0) {
             setTickets(prev => mergeRemoteTickets(prev, freshTickets));
+          }
+        }
+        if (pubRes.status === 'fulfilled' && pubRes.value.ok) {
+          const freshPubs = await pubRes.value.json().catch(() => null);
+          if (Array.isArray(freshPubs) && freshPubs.length > 0) {
+            let deletedIds = [];
+            try {
+              deletedIds = JSON.parse(localStorage.getItem('itsm_deleted_publication_ids') || '[]');
+            } catch (e) {}
+            setPublications(freshPubs.filter(p => !deletedIds.includes(p.id) && !deletedIds.includes(p.referenceNumber)));
           }
         }
       } catch (e) {
@@ -824,9 +965,10 @@ export function DataProvider({ children }) {
 
   const createTicket = async (ticketData, user) => {
     const finalStatus = ticketData.status || (ticketData.assignedTo ? 'Assigned' : 'New');
+    const generatedNum = ticketData.ticketNumber || ticketData.id || `TKT-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
     const newTicket = {
-      id: `TKT-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
-      ticketNumber: `TKT-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
+      id: generatedNum,
+      ticketNumber: generatedNum,
       ...ticketData,
       status: finalStatus,
       createdAt: new Date().toISOString(),
@@ -834,17 +976,37 @@ export function DataProvider({ children }) {
       partsUsed: [],
       reassignmentRequest: null
     };
-    setTickets(prev => [newTicket, ...prev]);
+
+    setTickets(prev => {
+      const exists = prev.some(t =>
+        t.id === newTicket.id ||
+        t.ticketNumber === newTicket.ticketNumber ||
+        (t.title && newTicket.title && t.title.toLowerCase() === newTicket.title.toLowerCase() && t.description === newTicket.description)
+      );
+      if (exists) return prev;
+      return deduplicateTickets([newTicket, ...prev]);
+    });
+
     syncChannelRef.current?.postMessage({ type: 'TICKET_UPDATED', payload: newTicket });
     addAuditLog(user?.id, user?.username || user?.name, 'CREATE', 'Ticket', newTicket.id, `Created new ticket: ${ticketData.title}`, 'Helpdesk');
     
     const serverResult = await apiCall('/tickets', 'POST', {
       ...ticketData,
+      id: generatedNum,
+      ticketNumber: generatedNum,
       requesterId: user?.id,
       status: finalStatus
     });
+
     if (serverResult && serverResult.id) {
-      setTickets(prev => prev.map(t => t.id === newTicket.id ? { ...newTicket, ...serverResult } : t));
+      setTickets(prev => {
+        const withoutTemp = prev.filter(t =>
+          t.id !== newTicket.id &&
+          t.ticketNumber !== newTicket.ticketNumber &&
+          !(t.title && newTicket.title && t.title.toLowerCase() === newTicket.title.toLowerCase() && t.description === newTicket.description)
+        );
+        return deduplicateTickets([{ ...newTicket, ...serverResult }, ...withoutTemp]);
+      });
       syncChannelRef.current?.postMessage({ type: 'TICKET_UPDATED', payload: { ...newTicket, ...serverResult } });
       return serverResult;
     }
@@ -1400,8 +1562,10 @@ export function DataProvider({ children }) {
 
   // --- PUBLICATIONS ---
   const createPublication = async (data, user) => {
+    const computedId = data.referenceNumber || data.id || generatePublicationId(new Date(), publications);
     const newPub = {
-      id: `PUB-${Date.now()}`,
+      id: computedId,
+      referenceNumber: computedId,
       ...data,
       status: 'Pending Review',
       requestedBy: user?.id,
@@ -1411,19 +1575,47 @@ export function DataProvider({ children }) {
       publishedAt: null
     };
     setPublications(prev => [newPub, ...prev]);
+    syncChannelRef.current?.postMessage({ type: 'PUBLICATION_UPDATED', payload: newPub });
     addAuditLog(user?.id, user?.username || user?.name, 'CREATE', 'Publication', newPub.id, `Submitted publication request: ${data.title}`, 'Web Publication');
-    const serverResult = await apiCall('/publications', 'POST', { ...data, requestedBy: user?.id });
+    const serverResult = await apiCall('/publications', 'POST', {
+      ...data,
+      id: computedId,
+      referenceNumber: computedId,
+      requestedBy: user?.id
+    });
     if (serverResult) {
-      setPublications(prev => prev.map(p => p.id === newPub.id ? serverResult : p));
+      setPublications(prev => prev.map(p => p.id === newPub.id ? { ...newPub, ...serverResult } : p));
+      syncChannelRef.current?.postMessage({ type: 'PUBLICATION_UPDATED', payload: { ...newPub, ...serverResult } });
       return serverResult;
     }
     return newPub;
   };
 
-  const approvePublication = (id, user) => {
-    setPublications(prev => prev.map(p => p.id === id ? { ...p, status: 'Published', approvedBy: user?.id, publishedBy: user?.id, publishedAt: new Date().toISOString() } : p));
+  const approvePublication = async (id, user) => {
+    const patch = { status: 'Published', approvedBy: user?.id, publishedBy: user?.id, publishedAt: new Date().toISOString() };
+    setPublications(prev => prev.map(p => (p.id === id || p.referenceNumber === id) ? { ...p, ...patch } : p));
+    syncChannelRef.current?.postMessage({ type: 'PUBLICATION_UPDATED', payload: { id, ...patch } });
     addAuditLog(user?.id, user?.username || user?.name, 'PUBLISH', 'Publication', id, `Approved and published publication ${id}`, 'Web Publication');
-    apiCall(`/publications/${id}/approve`, 'PATCH', { approvedBy: user?.id });
+    const res = await apiCall(`/publications/${id}/approve`, 'PATCH', { approvedBy: user?.id });
+    if (res) {
+      setPublications(prev => prev.map(p => (p.id === id || p.referenceNumber === id || p.id === res.id) ? { ...p, ...res } : p));
+      syncChannelRef.current?.postMessage({ type: 'PUBLICATION_UPDATED', payload: { ...res } });
+    }
+  };
+
+  const deletePublication = (id, user) => {
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('itsm_deleted_publication_ids') || '[]');
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem('itsm_deleted_publication_ids', JSON.stringify(deletedIds));
+      }
+    } catch (e) {}
+
+    setPublications(prev => prev.filter(p => p.id !== id && p.referenceNumber !== id));
+    syncChannelRef.current?.postMessage({ type: 'PUBLICATION_DELETED', payload: { id } });
+    addAuditLog(user?.id, user?.username || user?.name, 'DELETE', 'Publication', id, `Deleted publication ${id}`, 'Web Publication');
+    apiCall(`/publications/${id}`, 'DELETE');
   };
 
   // Helper getters
@@ -1453,7 +1645,7 @@ export function DataProvider({ children }) {
       createUser, updateUserRole, toggleUserActive, resetUserPassword,
       broadcasts, addBroadcast, toggleBroadcast, removeBroadcast,
       createRepair, closeRepair, deleteRepair,
-      createPublication, approvePublication,
+      createPublication, approvePublication, deletePublication,
       addAuditLog,
     }}>
       {children}

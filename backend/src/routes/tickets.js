@@ -110,9 +110,9 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/tickets - Create new ticket
 router.post('/', async (req, res) => {
-  const { title, description, category, priority, requester_id, requesterId, reportedBy, assignedTo, assigneeId, division_id, division, asset_id, assetId, notes, status } = req.body;
+  const { title, description, category, priority, requester_id, requesterId, reportedBy, assignedTo, assigneeId, division_id, division, asset_id, assetId, notes, status, ticketNumber: incomingTicketNumber, id: incomingId } = req.body;
   try {
-    const ticketNumber = `TKT-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+    const ticketNumber = incomingTicketNumber || (incomingId && String(incomingId).startsWith('TKT-') ? incomingId : `TKT-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`);
     
     // Resolve foreign keys safely
     let reqId = await resolveUserId(db, requester_id || requesterId || reportedBy);

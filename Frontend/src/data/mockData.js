@@ -133,6 +133,27 @@ export function generateZoomMeetingId(dateVal, branchName, existingList = []) {
   return `${baseId}-${String(seq).padStart(2, '0')}`;
 }
 
+export function generatePublicationId(dateVal = new Date(), existingList = []) {
+  const d = dateVal ? new Date(dateVal) : new Date();
+  const validDate = isNaN(d.getTime()) ? new Date() : d;
+  const yyyy = validDate.getFullYear();
+  const mm = String(validDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(validDate.getDate()).padStart(2, '0');
+  const hh = String(validDate.getHours()).padStart(2, '0');
+  const min = String(validDate.getMinutes()).padStart(2, '0');
+  const baseId = `${yyyy}-${mm}-${dd}-${hh}${min}`;
+
+  const existingIds = (existingList || []).map(p => p.id || p.referenceNumber || '');
+  if (!existingIds.includes(baseId)) {
+    return baseId;
+  }
+  let seq = 2;
+  while (existingIds.includes(`${baseId}-${String(seq).padStart(2, '0')}`)) {
+    seq++;
+  }
+  return `${baseId}-${String(seq).padStart(2, '0')}`;
+}
+
 export const ZOOM_REQUESTS = [
   { id: '2026-09-18-FINANCE', referenceNumber: '2026-09-18-FINANCE', branch: 'Finance Division', meetingName: 'Higher Education Budget Review 2027', meetingLink: 'https://zoom.us/j/123456789', location: 'Main Conference Hall — 3rd Floor', meetingLevel: 'Critical', requiredEquipment: ['Projector', 'HDMI Cable', 'Laptop', 'Microphone', 'Screen'], requestedBy: 'U007', assignedTo: 'U004', status: 'Confirmed', scheduledDate: '2026-09-18T09:00:00', createdAt: '2026-09-14T10:00:00' },
   { id: '2026-09-20-ACADEMIC', referenceNumber: '2026-09-20-ACADEMIC', branch: 'Academic Affairs Division', meetingName: 'Academic Council Meeting', meetingLink: '', location: 'Boardroom — 5th Floor', meetingLevel: 'Medium', requiredEquipment: ['Laptop', 'HDMI Cable', 'Webcam'], requestedBy: 'U007', assignedTo: 'U005', status: 'Pending', scheduledDate: '2026-09-20T14:00:00', createdAt: '2026-09-15T09:00:00' },
@@ -143,9 +164,9 @@ export const ZOOM_REQUESTS = [
 // PUBLICATIONS
 // ============================================================
 export const PUBLICATIONS = [
-  { id: 'PUB-2026-001', title: 'Scholarship Application Portal Launch Notice', content: 'Official notice regarding the opening of the 2027 Scholarship Applications portal...', publishedBy: 'U002', approvedBy: 'U001', requestedBy: 'U007', status: 'Published', publishedAt: '2026-09-10T12:00:00', requestedAt: '2026-09-08T09:00:00', attachments: ['scholarship_notice_2027.pdf'] },
-  { id: 'PUB-2026-002', title: 'Ministry Annual Report 2025 — Web Upload', content: 'Annual report document for public portal...', publishedBy: null, approvedBy: null, requestedBy: 'U008', status: 'Pending Review', publishedAt: null, requestedAt: '2026-09-15T14:00:00', attachments: ['annual_report_2025.pdf', 'summary_2025.docx'] },
-  { id: 'PUB-2026-003', title: 'Updated Contact Directory', content: 'Updated divisional contacts and phone directory...', publishedBy: 'U003', approvedBy: 'U001', requestedBy: 'U007', status: 'Published', publishedAt: '2026-09-05T11:00:00', requestedAt: '2026-09-03T10:00:00', attachments: [] },
+  { id: '2026-09-08-0900', referenceNumber: '2026-09-08-0900', title: 'Scholarship Application Portal Launch Notice', content: 'Official notice regarding the opening of the 2027 Scholarship Applications portal...', publishedBy: 'U002', approvedBy: 'U001', requestedBy: 'U007', status: 'Published', publishedAt: '2026-09-10T12:00:00', requestedAt: '2026-09-08T09:00:00', attachments: ['scholarship_notice_2027.pdf'] },
+  { id: '2026-09-15-1400', referenceNumber: '2026-09-15-1400', title: 'Ministry Annual Report 2025 — Web Upload', content: 'Annual report document for public portal...', publishedBy: null, approvedBy: null, requestedBy: 'U008', status: 'Pending Review', publishedAt: null, requestedAt: '2026-09-15T14:00:00', attachments: ['annual_report_2025.pdf', 'summary_2025.docx'] },
+  { id: '2026-09-03-1000', referenceNumber: '2026-09-03-1000', title: 'Updated Contact Directory', content: 'Updated divisional contacts and phone directory...', publishedBy: 'U003', approvedBy: 'U001', requestedBy: 'U007', status: 'Published', publishedAt: '2026-09-05T11:00:00', requestedAt: '2026-09-03T10:00:00', attachments: [] },
 ];
 
 // ============================================================

@@ -11,6 +11,7 @@ export default function NewTicketPage() {
   const { currentUser } = useAuth();
   const { addToast } = useNotifications();
   const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     category: 'Hardware', title: '', description: '', priority: 'Medium',
     division: '', assetId: '', assignedTo: '',
@@ -24,13 +25,19 @@ export default function NewTicketPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     if (!form.title || !form.description || !form.category) {
       addToast('error', 'Missing Fields', 'Please fill in all required fields');
       return;
     }
-    const ticket = await createTicket({ ...form, reportedBy: currentUser?.id, status: form.assignedTo ? 'Assigned' : 'New' }, currentUser);
-    addToast('success', 'Ticket Created', `${ticket.id || ticket.ticketNumber} has been created and logged`);
-    navigate(`/helpdesk/${ticket.id}`);
+    setSubmitting(true);
+    try {
+      const ticket = await createTicket({ ...form, reportedBy: currentUser?.id, status: form.assignedTo ? 'Assigned' : 'New' }, currentUser);
+      addToast('success', 'Ticket Created', `${ticket.id || ticket.ticketNumber} has been created and logged`);
+      navigate(`/helpdesk/${ticket.id}`);
+    } catch (err) {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -116,7 +123,9 @@ export default function NewTicketPage() {
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
             <Link to="/helpdesk" className="btn btn-secondary">Cancel</Link>
-            <button type="submit" className="btn btn-primary"><Plus size={15} /> Create Ticket</button>
+            <button type="submit" className="btn btn-primary" disabled={submitting}>
+              <Plus size={15} /> {submitting ? 'Creating Ticket...' : 'Create Ticket'}
+            </button>
           </div>
         </form>
       </div>
